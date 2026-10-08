@@ -1,0 +1,8 @@
+{
+  "seed": 42,
+  "population": 1000,
+  "countdown_min_seconds": 300,
+  "countdown_max_seconds": 600,
+  "tick_seconds": 5.0,
+  "arrival_radius_m": 2.0
+}

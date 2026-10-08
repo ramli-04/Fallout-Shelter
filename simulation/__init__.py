@@ -1,0 +1,1 @@
+"""Discrete-time simulation components."""

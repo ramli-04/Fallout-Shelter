@@ -1,0 +1,47 @@
+[
+  {
+    "id": "S1", "capacity": 2500, "position_m": [150.0, 100.0],
+    "resources_label": "Supplies for 1000 people for 2 days",
+    "supplies_person_days": 2000.0, "supplies_range_person_days": null,
+    "reported_supplies_person_days": 2000.0,
+    "distance_band": "close", "feature": "Popular; overcrowding risk",
+    "maintenance_failure_probability": 0.02,
+    "existence_probability": 1.0, "public_existence_probability": 1.0
+  },
+  {
+    "id": "S2", "capacity": 750, "position_m": [-200.0, 100.0],
+    "resources_label": "Abundant",
+    "supplies_person_days": 7500.0, "supplies_range_person_days": null,
+    "reported_supplies_person_days": 7500.0,
+    "distance_band": "close", "feature": "High maintenance failure risk",
+    "maintenance_failure_probability": 0.35,
+    "existence_probability": 1.0, "public_existence_probability": 1.0
+  },
+  {
+    "id": "S3", "capacity": 1800, "position_m": [650.0, 0.0],
+    "resources_label": "Unknown",
+    "supplies_person_days": null, "supplies_range_person_days": [3600.0, 18000.0],
+    "reported_supplies_person_days": null,
+    "distance_band": "medium", "feature": "Communication system",
+    "maintenance_failure_probability": 0.02,
+    "existence_probability": 1.0, "public_existence_probability": 1.0
+  },
+  {
+    "id": "S4", "capacity": 3500, "position_m": [2000.0, 800.0],
+    "resources_label": "Abundant",
+    "supplies_person_days": 35000.0, "supplies_range_person_days": null,
+    "reported_supplies_person_days": 35000.0,
+    "distance_band": "very far", "feature": "Significant travel-time risk",
+    "maintenance_failure_probability": 0.02,
+    "existence_probability": 1.0, "public_existence_probability": 1.0
+  },
+  {
+    "id": "S5", "capacity": 5000, "position_m": [-2200.0, 700.0],
+    "resources_label": "Abundant",
+    "supplies_person_days": 50000.0, "supplies_range_person_days": null,
+    "reported_supplies_person_days": 50000.0,
+    "distance_band": "very far", "feature": "Unpopular; uncertain existence",
+    "maintenance_failure_probability": 0.02,
+    "existence_probability": 0.5, "public_existence_probability": 0.5
+  }
+]

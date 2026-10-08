@@ -1,0 +1,9 @@
+[project]
+name = "essaim"
+version = "0.1.0"
+description = "ESSAIM - La Derniere Chance, an academic multi-agent simulation"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.essaim]
+milestones = [1, 2, 3]

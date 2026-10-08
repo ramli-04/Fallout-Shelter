@@ -1,0 +1,14 @@
+{
+  "spawn_x_m": [-250.0, 250.0],
+  "spawn_y_m": [-250.0, 250.0],
+  "speed_m_per_second": [1.2, 4.8],
+  "authority_fraction": 0.05,
+  "communication_probability": 0.85,
+  "risk_tolerance": [0.0, 1.0],
+  "trust_in_authorities": [0.0, 1.0],
+  "sociability": [0.0, 1.0],
+  "crowd_following": [0.0, 1.0],
+  "initial_health": 100.0,
+  "initial_belief_confidence": 0.5,
+  "personalities": ["cautious", "bold", "social", "pragmatic"]
+}

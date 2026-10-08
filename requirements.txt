@@ -1,0 +1,2 @@
+# Milestones 1-3 use only the Python standard library.
+# No pip installation is needed to run the simulation or its tests.
