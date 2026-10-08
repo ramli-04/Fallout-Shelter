@@ -27,12 +27,25 @@ func make_manager(seed_number: int = 42) -> Node:
 	root.add_child(manager)
 	manager.set_process(false)
 	check(manager.load_settings(), "default configuration loads")
+	manager.living["false_alarm_probability"] = 0.0
+	for key in manager.living["event_probabilities"]: manager.living["event_probabilities"][key] = 0.0
+	manager.living["help_radius"] = 0.0
 	manager.seed_value = seed_number
 	manager.initialize_run()
 	return manager
 
 
+func start_alarm(manager: Node) -> void:
+	manager.start()
+	manager.launch_nuke()
+	for agent in manager.agents:
+		agent["wait_until"] = 0.0
+		agent["state"] = "DECIDING"
+		manager.choose_destination(agent)
+
+
 func force_trip(manager: Node, agent: Dictionary, id: String, start: Vector2) -> void:
+	agent["primary_personality"] = "SURVIVALIST"
 	agent["state"] = "MOVING"
 	agent["position"] = start
 	agent["previous_position"] = start
@@ -60,7 +73,7 @@ func _run() -> void:
 	manager.new_run(42)
 	check(manager.agents == initial_agents and manager.shelters == initial_shelters, "seed restores initial profiles and shelters")
 	check(manager.countdown_seconds == countdown, "seed restores countdown")
-	manager.start()
+	start_alarm(manager)
 	check(manager.phase == "EVACUATION" and manager.running, "Start activates evacuation")
 	for agent in manager.agents:
 		check(not agent["objective"].is_empty(), "each default agent chooses a destination")
@@ -100,8 +113,8 @@ func _run() -> void:
 	# Same simulated duration with different frame partitions gives identical state/events.
 	var small_frames := make_manager()
 	var large_frames := make_manager()
-	small_frames.start()
-	large_frames.start()
+	start_alarm(small_frames)
+	start_alarm(large_frames)
 	for frame in range(600): small_frames.advance_clock(1.0 / 60.0)
 	large_frames.advance_clock(10)
 	check(small_frames.agents == large_frames.agents and small_frames.events == large_frames.events, "60 FPS and one long frame produce the same ten-second simulation")
@@ -129,13 +142,13 @@ func _run() -> void:
 	check(context["beliefs"]["S5"]["existence_probability"] == 0.5, "S5 belief remains uncertain")
 	var cautious: Dictionary = context.duplicate(true)
 	var bold: Dictionary = context.duplicate(true)
-	cautious["personality"] = "Cautious"
-	bold["personality"] = "Bold"
+	cautious["primary_personality"] = "CAUTIOUS"
+	bold["primary_personality"] = "AGGRESSIVE"
 	check(Decisions.evaluate(cautious, 500, manager.settings["evacuation"]["weights"])["scores"] != Decisions.evaluate(bold, 500, manager.settings["evacuation"]["weights"])["scores"], "personality changes reasoned shelter scores")
 	check(Decisions.evaluate(context, 0, manager.settings["evacuation"]["weights"])["shelter_id"].is_empty(), "unreachable destinations are ineligible")
 	# Capacity, duplicate, absent, and nonoperational admission boundaries.
 	manager.initialize_run()
-	manager.start()
+	start_alarm(manager)
 	var shelter: Dictionary = manager.shelter_by_id["S1"]
 	shelter["capacity"] = 1
 	force_trip(manager, manager.agents[0], "S1", shelter["position"])
@@ -162,6 +175,7 @@ func _run() -> void:
 	force_trip(manager, manager.agents[3], "S2", unavailable["position"])
 	check(manager.admit_arrival(manager.agents[3]) == "Shelter is not operational", "nonoperational shelter rejects")
 	# Keep one agent definitely outside until the deadline; no invented mortality.
+	manager.agents[4]["position"] = Vector2(900, 0)
 	manager.agents[4]["state"] = "DECIDING"
 	for belief in manager.agents[4]["beliefs"].values(): belief["unavailable"] = true
 	var protected_position: Vector2 = manager.agents[0]["position"]
@@ -186,7 +200,7 @@ func _run() -> void:
 	manager.queue_free()
 	# Deadline boundary: no overshoot, even when the final step is shorter than a tick.
 	var boundary := make_manager()
-	boundary.start()
+	start_alarm(boundary)
 	boundary.next_decision_seconds = 1000
 	boundary.elapsed_seconds = boundary.countdown_seconds - 0.05
 	boundary.remaining_seconds = 0.05
@@ -206,6 +220,7 @@ func _run() -> void:
 	app.manager.set_process(false)
 	check(app.effects.player.stream.data.size() == 11025 * 3 * 2, "three-second 16-bit warning waveform generated")
 	app.start_button.pressed.emit()
+	app.launch_button.pressed.emit()
 	check(app.effects.player.playing, "siren signal starts audio playback")
 	check(app.countdown_label.text != "--:--" and app.manager.phase == "EVACUATION", "Start updates phase and countdown UI")
 	app.speed_picker.item_selected.emit(3)
@@ -218,7 +233,7 @@ func _run() -> void:
 	check(not app.summary_panel.visible and not is_instance_valid(app.map_view.impact_effect) and app.map_view.agent_nodes.size() == 20, "Reset clears impact and preserves unique agent nodes")
 	check(not app.effects.player.playing, "Reset stops warning playback")
 	var old_seed: int = app.manager.seed_value
-	app.new_run_button.pressed.emit()
+	app.random_button.pressed.emit()
 	check(app.manager.seed_value != old_seed and app.manager.phase == "PREPARATION", "New run uses a different seed")
 	app.queue_free()
 	await process_frame

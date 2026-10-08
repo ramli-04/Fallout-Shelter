@@ -6,6 +6,7 @@ const Manager = preload("res://scripts/simulation_manager.gd")
 const MapView = preload("res://scripts/map_view.gd")
 const Inspector = preload("res://scripts/object_inspector.gd")
 const Effects = preload("res://scripts/evacuation_effects.gd")
+const WorldView = preload("res://scripts/world_projection.gd")
 
 var manager: Node
 var map_view: SubViewportContainer
@@ -34,6 +35,13 @@ var selected_kind := "none"
 var selected_id := ""
 var ui_dirty := false
 var ui_refresh_time := 0.0
+var director_mode := false
+var mode_picker: OptionButton
+var launch_button: Button
+var false_alarm_button: Button
+var random_button: Button
+var export_button: Button
+var environment_feed: RichTextLabel
 
 
 func _ready() -> void:
@@ -51,8 +59,14 @@ func _ready() -> void:
 	manager.siren_activated.connect(effects.sound_siren)
 	manager.clock_changed.connect(effects.set_clock_active)
 	manager.impact_occurred.connect(_on_impact)
+	manager.all_clear.connect(_on_all_clear)
 	map_view.object_selected.connect(_on_object_selected)
 	start_button.pressed.connect(manager.start)
+	launch_button.pressed.connect(manager.launch_nuke)
+	false_alarm_button.pressed.connect(manager.launch_nuke.bind(true))
+	random_button.pressed.connect(_on_random_run)
+	export_button.pressed.connect(_export_trace)
+	mode_picker.item_selected.connect(_change_mode)
 	pause_button.pressed.connect(manager.pause)
 	reset_button.pressed.connect(manager.initialize_run)
 	new_run_button.pressed.connect(_on_new_run)
@@ -96,7 +110,7 @@ func _build_top_bar(layout: VBoxContainer) -> void:
 	var row := Dashboard.row(22)
 	panel.add_child(row)
 	var title := Dashboard.column(3)
-	title.add_child(Dashboard.label("URBAN RESILIENCE LAB   /   EVACUATION 02", 12, Dashboard.ACCENT))
+	title.add_child(Dashboard.label("URBAN RESILIENCE LAB   /   LIVING WORLD 2.5", 12, Dashboard.ACCENT))
 	title.add_child(Dashboard.label("ESSAIM — LA DERNIÈRE CHANCE", 22))
 	row.add_child(title)
 	row.add_child(Dashboard.spacer())
@@ -190,19 +204,33 @@ func _build_event_panel(layout: VBoxContainer) -> void:
 	column.add_child(heading)
 	event_feed = RichTextLabel.new()
 	event_feed.bbcode_enabled = false
-	event_feed.custom_minimum_size.y = 95
+	event_feed.custom_minimum_size.y = 72
 	event_feed.scroll_following = true
 	event_feed.add_theme_font_size_override("normal_font_size", 13)
-	column.add_child(event_feed)
+	var tabs := TabContainer.new()
+	column.add_child(tabs)
+	event_feed.name = "Journal"
+	tabs.add_child(event_feed)
+	environment_feed = RichTextLabel.new()
+	environment_feed.name = "Environment"
+	environment_feed.custom_minimum_size.y = 72
+	environment_feed.scroll_following = true
+	environment_feed.add_theme_font_size_override("normal_font_size", 13)
+	tabs.add_child(environment_feed)
 
 
 func _build_controls(layout: VBoxContainer) -> void:
 	var row := Dashboard.row(10)
 	layout.add_child(row)
-	start_button = Dashboard.button("Start", true)
+	start_button = Dashboard.button("Start simulation", true)
 	pause_button = Dashboard.button("Pause")
-	reset_button = Dashboard.button("Reset")
+	reset_button = Dashboard.button("Reset same scenario")
 	row.add_child(start_button)
+	launch_button = Dashboard.button("Launch nuke", true)
+	row.add_child(launch_button)
+	false_alarm_button = Dashboard.button("False alarm")
+	false_alarm_button.visible = false
+	row.add_child(false_alarm_button)
 	row.add_child(pause_button)
 	row.add_child(reset_button)
 	speed_picker = OptionButton.new()
@@ -210,6 +238,13 @@ func _build_controls(layout: VBoxContainer) -> void:
 	for speed in [1, 2, 5, 10]:
 		speed_picker.add_item("%dx" % speed, speed)
 	row.add_child(speed_picker)
+	mode_picker = OptionButton.new()
+	mode_picker.add_item("Observer mode")
+	mode_picker.add_item("Director mode")
+	row.add_child(mode_picker)
+	var seed_row := Dashboard.row(10)
+	layout.add_child(seed_row)
+	row = seed_row
 	row.add_child(Dashboard.label("Seed", 14, Dashboard.MUTED))
 	seed_picker = SpinBox.new()
 	seed_picker.min_value = 0
@@ -217,8 +252,13 @@ func _build_controls(layout: VBoxContainer) -> void:
 	seed_picker.step = 1
 	seed_picker.custom_minimum_size.x = 95
 	row.add_child(seed_picker)
-	new_run_button = Dashboard.button("New run")
+	new_run_button = Dashboard.button("Use seed")
 	row.add_child(new_run_button)
+	random_button = Dashboard.button("New random simulation")
+	row.add_child(random_button)
+	export_button = Dashboard.button("Export trace")
+	export_button.visible = false
+	row.add_child(export_button)
 	row.add_child(Dashboard.spacer())
 	clock_label = Dashboard.label("Elapsed  00:00", 14)
 	row.add_child(clock_label)
@@ -232,15 +272,16 @@ func _on_run_initialized() -> void:
 	for child in shelter_list.get_children():
 		shelter_list.remove_child(child)
 		child.queue_free()
-	for record in manager.shelters:
+	for record in WorldView.shelters(manager.shelters, director_mode):
 		var card := Dashboard.shelter_card(record)
 		card.pressed.connect(map_view.select_shelter.bind(record))
 		shelter_list.add_child(card)
-	map_view.display_run(manager.agents, manager.shelters)
+	map_view.display_run(manager.agents, WorldView.shelters(manager.shelters, director_mode))
 	count_label.text = str(manager.agents.size())
 	seed_label.text = "SEED %d  /  REPRODUCIBLE RESET" % manager.seed_value
 	speed_label.text = "SPEED  %dx" % int(manager.simulation_speed) if is_equal_approx(manager.simulation_speed, round(manager.simulation_speed)) else "SPEED  %.1fx" % manager.simulation_speed
 	event_feed.clear()
+	environment_feed.clear()
 	for entry in manager.events:
 		_on_event_logged(entry)
 	_on_object_selected("none", {})
@@ -251,17 +292,25 @@ func _on_run_initialized() -> void:
 
 func _on_clock_changed(elapsed: float, active: bool) -> void:
 	clock_label.text = "Elapsed  %s" % _format_time(elapsed)
-	countdown_label.text = "--:--" if manager.phase == "PREPARATION" else _format_time(ceil(manager.remaining_seconds))
-	status_label.text = "Impact" if manager.phase == "IMPACT" else "Evacuation • %s" % ("Running" if active else "Paused") if manager.phase == "EVACUATION" else "Preparation • Ready"
-	start_button.text = "Resume" if manager.phase == "EVACUATION" else "Start"
-	start_button.disabled = active or manager.phase == "IMPACT"
+	countdown_label.text = "Unknown" if manager.phase == "EVACUATION" and not director_mode else _format_time(ceil(manager.remaining_seconds)) if manager.phase == "EVACUATION" else "--:--"
+	status_label.text = manager.phase.capitalize() + (" / Running" if active else " / Paused")
+	if director_mode and manager.phase == "EVACUATION":
+		status_label.text += " / " + ("Real" if manager.alarm_is_real else "False")
+	start_button.text = "Start simulation" if manager.phase == "PREPARATION" else "Resume"
+	start_button.disabled = active or manager.phase in ["IMPACT", "ALL_CLEAR"]
+	launch_button.disabled = manager.phase not in ["PREPARATION", "LIVING"]
+	false_alarm_button.disabled = launch_button.disabled
 	pause_button.disabled = not active
 	speed_label.text = "SPEED  %dx" % int(manager.simulation_speed)
 	top_speed_label.text = "%dx" % int(manager.simulation_speed)
 
 
 func _on_event_logged(entry: Dictionary) -> void:
+	if not director_mode and entry.get("visibility", "public") == "director":
+		return
 	event_feed.add_text("[%s]  %-8s  %s\n" % [_format_time(entry["time"]), entry["category"], entry["message"]])
+	if entry["category"] in ["ENVIRONMENT", "OBSERVED", "RELAY"]:
+		environment_feed.add_text("[%s] %s\n" % [_format_time(entry["time"]), entry["message"]])
 
 
 func _on_object_selected(kind: String, record: Dictionary) -> void:
@@ -278,17 +327,18 @@ func _refresh_inspector() -> void:
 	if selected_kind == "agent":
 		for agent in manager.agents:
 			if agent["id"] == selected_id:
-				details.text = Inspector.agent_text(agent, manager.remaining_seconds)
+				details.text = Inspector.agent_text(agent)
 				return
 	elif selected_kind == "shelter":
-		details.text = Inspector.shelter_text(manager.shelter_by_id[selected_id])
+		details.text = Inspector.shelter_text(WorldView.shelter(manager.shelter_by_id[selected_id], director_mode))
 		return
-	details.text = "[color=#8da3bb]Select an agent or shelter to inspect.\n\nPress Start to trigger the siren. Operator shelter status is actual state; agent decisions use private beliefs.[/color]"
+	details.text = "[color=#8da3bb]Select an agent or shelter. Start simulation activates the city. Launch nuke sounds the siren.\n\nObserver mode hides world secrets. Director mode reveals them without changing agents.[/color]"
 
 
 func _on_simulation_updated() -> void:
 	var alpha: float = manager.accumulator / float(manager.settings["evacuation"]["fixed_step_seconds"])
-	map_view.sync_run(manager.agents, manager.shelters, alpha, manager.running)
+	map_view.sync_run(manager.agents, WorldView.shelters(manager.shelters, director_mode), alpha, manager.running)
+	map_view.event_visuals.sync(manager.environment_events, director_mode)
 	ui_dirty = true
 
 
@@ -304,7 +354,7 @@ func _refresh_live_ui() -> void:
 	var totals: Dictionary = manager.get_totals()
 	totals_label.text = "%d / %d" % [totals["sheltered"], totals["exposed"]]
 	for index in range(manager.shelters.size()):
-		Dashboard.update_shelter_card(shelter_list.get_child(index), manager.shelters[index])
+		Dashboard.update_shelter_card(shelter_list.get_child(index), WorldView.shelter(manager.shelters[index], director_mode))
 	_refresh_inspector()
 
 
@@ -318,9 +368,72 @@ func _on_impact(result: Dictionary) -> void:
 
 func _on_new_run() -> void:
 	var chosen_seed := int(seed_picker.value)
-	if chosen_seed == manager.seed_value:
-		chosen_seed = (chosen_seed + 1) % 2147483647
 	manager.new_run(chosen_seed)
+
+
+func _on_random_run() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var chosen := rng.randi_range(0, 2147483646)
+	if chosen == manager.seed_value:
+		chosen = (chosen+1) % 2147483647
+	manager.new_run(chosen)
+
+
+func _change_mode(index: int) -> void:
+	director_mode = index == 1
+	false_alarm_button.visible = director_mode
+	export_button.visible = director_mode
+	# Rebuild only view nodes, preserving clock, agents, RNG streams and camera.
+	var camera_position: Vector2 = map_view.camera.position
+	var camera_zoom: Vector2 = map_view.camera.zoom
+	map_view.display_run(manager.agents, WorldView.shelters(manager.shelters, director_mode), false)
+	map_view.camera.position = camera_position
+	map_view.camera.zoom = camera_zoom
+	map_view.camera.force_update_scroll()
+	map_view.event_visuals.sync(manager.environment_events, director_mode)
+	if manager.phase == "IMPACT":
+		map_view.show_impact()
+	event_feed.clear()
+	environment_feed.clear()
+	for entry in manager.events:
+		_on_event_logged(entry)
+	_on_clock_changed(manager.elapsed_seconds, manager.running)
+	_refresh_live_ui()
+
+
+func _on_all_clear() -> void:
+	effects.stop_siren()
+	summary_panel.visible = true
+	summary_label.text = "ALL CLEAR / False alarm. No nuclear impact occurred."
+	_refresh_live_ui()
+
+
+func _export_trace() -> void:
+	var path := "user://essaim_trace_%d.json" % manager.seed_value
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		manager.log_event("ERROR", "Cannot write trace: " + error_string(FileAccess.get_open_error()))
+		return
+	file.store_string(JSON.stringify(_json_value({"seed": manager.seed_value, "settings": manager.settings, "living": manager.living, "alarm_is_real": manager.alarm_is_real, "countdown": manager.countdown_seconds, "events": manager.events, "environment": manager.environment_events, "agents": manager.agents, "shelters": manager.shelters}), "\t"))
+	file.close()
+	manager.log_event("EXPORT", "Trace saved: " + ProjectSettings.globalize_path(path), "director")
+
+
+static func _json_value(value: Variant) -> Variant:
+	if value is Vector2:
+		return [value.x, value.y]
+	if value is Dictionary:
+		var result := {}
+		for key in value:
+			result[key] = _json_value(value[key])
+		return result
+	if value is Array or value is PackedVector2Array:
+		var result := []
+		for item in value:
+			result.append(_json_value(item))
+		return result
+	return value
 
 
 func _on_setup_failed(message: String) -> void:

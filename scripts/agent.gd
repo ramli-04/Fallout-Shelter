@@ -28,6 +28,9 @@ func _draw() -> void:
 		"SHELTERED": color = Color("66d9bb")
 		"REJECTED": color = Color("f0b76a")
 		"EXPOSED": color = Color("ed7587")
+		"FROZEN", "DELAYED", "STAYING_HOME", "WAITING_ROAD": color = Color("c2a0f3")
+		"HELPING": color = Color("e8e09a")
+		"SAFE": color = Color("66d9bb")
 	if is_selected:
 		draw_circle(Vector2.ZERO, 22, Color(0.4, 0.9, 1.0, 0.15))
 		draw_arc(Vector2.ZERO, 21, 0, TAU, 48, Color("ffffff"), 2.5, true)

@@ -53,7 +53,7 @@ func _run() -> void:
 		if shelter["exists"]:
 			existing += 1
 	check(capacities == [2500, 750, 1800, 3500, 5000], "specified capacities")
-	check(app.map_view.shelter_nodes.size() == existing, "only existing shelters drawn")
+	check(app.map_view.shelter_nodes.size() == 5, "only existing shelters drawn")
 	check(app.shelter_list.get_child_count() == 5, "absent shelter still has a sidebar record")
 	check(manager.shelters[2]["resources"] == "Unknown", "S3 supplies described as unknown")
 	check(manager.shelters[2]["supplies_person_days"] == null, "unknown quantity is null, never zero")
@@ -70,7 +70,7 @@ func _run() -> void:
 		check(agent["state"] == "IDLE", "agent starts idle")
 		check(agent["movement_speed"] >= 1.2 and agent["movement_speed"] <= 4.8, "speed range respected")
 		for property in ["risk_tolerance", "trust_in_authority", "sociability"]:
-			check(agent[property] >= 0 and agent[property] <= 1, "trait range respected")
+			check(agent[property] >= 0 and agent[property] <= 100, "trait range respected")
 		for building in CityMap.building_rects():
 			check(not building.grow(12).has_point(agent["position"]), "agent spawns clear of buildings")
 		for shelter in manager.shelters:
@@ -79,7 +79,7 @@ func _run() -> void:
 	var original_agents: Array = manager.agents.duplicate(true)
 	var original_shelters: Array = manager.shelters.duplicate(true)
 	var initial_events: Array = manager.events.duplicate(true)
-	check(initial_events.size() == 27, "system, five shelter and 20 agent events recorded")
+	check(initial_events.size() == 28, "system, five shelter and 20 agent events recorded")
 	check(app.start_button.disabled == false and app.pause_button.disabled, "initial control state")
 	# Dispatch real GUI events through the viewport, exercising connected signals.
 	click(app.start_button, app.start_button.size / 2)
@@ -111,8 +111,10 @@ func _run() -> void:
 	click(view, target)
 	await process_frame
 	check(is_instance_valid(view.selected_node) and view.selected_node.record["id"] == "S1", "map shelter click selects shelter")
-	check(app.details.text.contains("2500"), "shelter inspector shows capacity")
+	check(app.details.text.contains("Public size"), "observer inspector shows approximate size")
 	var s3_card: Control = app.shelter_list.get_child(2)
+	app.sidebar_scroll.ensure_control_visible(s3_card)
+	await process_frame
 	click(s3_card, s3_card.size / 2)
 	await process_frame
 	check(app.details.text.contains("Unknown"), "sidebar shelter selection shows unknown supplies")

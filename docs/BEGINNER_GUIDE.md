@@ -1,7 +1,7 @@
 # ESSAIM: your first Godot project
 
-> This is the historical Phase 1 guide. The current project implements Phase 2;
-> read [PHASE_2_GUIDE.md](PHASE_2_GUIDE.md) for the current Start behavior,
+> This is the historical Phase 1 guide. The current project implements Phase 2.5;
+> read [PHASE_25_GUIDE.md](PHASE_25_GUIDE.md) for the current Start behavior,
 > countdown, movement, admissions, speed controls and impact.
 
 This delivery implements **Phase 1: the visual prototype**. It runs entirely in

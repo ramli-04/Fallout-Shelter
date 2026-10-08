@@ -92,7 +92,7 @@ static func shelter_card(record: Dictionary) -> Button:
 	node.set_meta("status_label", status_label)
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size.y = 4
-	bar.max_value = record["capacity"]
+	bar.max_value = maxi(1, record["capacity"])
 	bar.value = record["occupancy"]
 	bar.show_percentage = false
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -111,8 +111,17 @@ static func shelter_card(record: Dictionary) -> Button:
 
 
 static func update_shelter_card(card: Button, record: Dictionary) -> void:
-	var percentage: float = 100.0 * record["occupancy"] / record["capacity"]
+	if record.get("observer_masked", false):
+		card.get_meta("capacity_label").text = "Size: %s / occupancy unverified" % record["known_information"]["size"]
+		card.get_meta("status_label").text = "Rumored site" if record["id"] == "S5" else "Status unverified / " + record["resources"]
+		card.get_meta("occupancy_bar").visible = false
+		return
+	card.get_meta("occupancy_bar").visible = true
+	card.get_meta("occupancy_bar").max_value = maxi(1, record["capacity"])
+	var percentage: float = 100.0 * record["occupancy"] / maxi(1, record["capacity"])
 	card.get_meta("capacity_label").text = "%d / %d  (%.1f%%) • %d places" % [record["occupancy"], record["capacity"], percentage, record["capacity"] - record["occupancy"]]
 	var status := "Absent" if not record["exists"] else "Unavailable" if not record["operational"] else "Closed" if not record["accepting"] else "Full" if record["occupancy"] >= record["capacity"] else "Open"
 	card.get_meta("status_label").text = "STATUS: " + status
+	if record.get("door_status", "OPEN") == "BLOCKED":
+		card.get_meta("status_label").text = "STATUS: Door blocked"
 	card.get_meta("occupancy_bar").value = record["occupancy"]

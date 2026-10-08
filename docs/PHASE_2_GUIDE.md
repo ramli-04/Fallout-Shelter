@@ -1,5 +1,9 @@
 # ESSAIM Phase 2: nuclear evacuation
 
+> Historical Phase 2 guide. The current project implements Phase 2.5;
+> read [PHASE_25_GUIDE.md](PHASE_25_GUIDE.md) for the current separate Start/Launch
+> controls, incomplete knowledge, personalities, incidents and false alarms.
+
 This extends the existing Godot project. Everything still runs in GDScript, with
 no plugins, Python, API keys, or downloaded graphics/audio. It ends at impact:
 **SHELTERED and EXPOSED describe location, not a final survival outcome.**

@@ -47,4 +47,4 @@ func _draw() -> void:
 		draw_polyline(points, color, 3, true)
 	draw_line(Vector2(-7, 0), Vector2(7, 0), color, 3)
 	draw_line(Vector2(0, -7), Vector2(0, 7), color, 3)
-	draw_string(ThemeDB.fallback_font, Vector2(-13, 66), record["id"], HORIZONTAL_ALIGNMENT_LEFT, -1, 20, color)
+	draw_string(ThemeDB.fallback_font, Vector2(-13, 66), record["id"] + (" ?" if record.get("rumored", false) else ""), HORIZONTAL_ALIGNMENT_LEFT, -1, 20, color)

@@ -1,7 +1,7 @@
 # Phase 1 scope, assumptions, and validation
 
-> Historical Phase 1 delivery notes. Phase 2 now extends this prototype;
-> current behavior and assumptions are in [PHASE_2_GUIDE.md](PHASE_2_GUIDE.md).
+> Historical Phase 1 delivery notes. Phase 2.5 now extends this prototype;
+> current behavior and assumptions are in [PHASE_25_GUIDE.md](PHASE_25_GUIDE.md).
 
 ## Specifications inspected
 

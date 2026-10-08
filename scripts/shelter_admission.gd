@@ -11,6 +11,8 @@ static func try_admit(agent: Dictionary, shelter: Dictionary, open_phase: bool) 
 		return "Shelter does not exist"
 	if not shelter["operational"]:
 		return "Shelter is not operational"
+	if shelter.get("door_status", "OPEN") != "OPEN":
+		return "Shelter door is blocked"
 	if shelter["occupancy"] >= shelter["capacity"]:
 		return "Shelter is full"
 	if agent["position"].distance_to(shelter["position"]) > 0.01:

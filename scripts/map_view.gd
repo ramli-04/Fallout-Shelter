@@ -17,6 +17,7 @@ var agent_nodes: Array[Node2D] = []
 var shelter_nodes: Array[Node2D] = []
 var selected_node: Node2D
 var impact_effect: Control
+var event_visuals: Node2D
 
 
 func _ready() -> void:
@@ -32,13 +33,15 @@ func _ready() -> void:
 	world = Node2D.new()
 	world_viewport.add_child(world)
 	world.add_child(CityMap.new())
+	event_visuals = preload("res://scripts/environment_visuals.gd").new()
+	world.add_child(event_visuals)
 	camera = Camera2D.new()
 	world.add_child(camera)
 	resized.connect(fit_camera)
 	fit_camera.call_deferred()
 
 
-func display_run(agents: Array[Dictionary], shelters: Array[Dictionary]) -> void:
+func display_run(agents: Array[Dictionary], shelters: Array[Dictionary], fit: bool = true) -> void:
 	clear_selection()
 	if is_instance_valid(impact_effect):
 		remove_child(impact_effect)
@@ -61,7 +64,8 @@ func display_run(agents: Array[Dictionary], shelters: Array[Dictionary]) -> void
 		node.configure(record)
 		world.add_child(node)
 		agent_nodes.append(node)
-	fit_camera.call_deferred()
+	if fit:
+		fit_camera.call_deferred()
 
 
 func sync_run(agents: Array[Dictionary], shelters: Array[Dictionary], alpha: float, active: bool) -> void:

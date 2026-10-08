@@ -31,6 +31,7 @@ func _capture() -> void:
 		app.manager.new_run(0)
 	await save_capture(prefix + "-preparation.png")
 	app.manager.start()
+	app.manager.launch_nuke()
 	app.manager.advance_clock(30)
 	app.map_view.select_at(app.map_view.agent_nodes[0].position)
 	app._refresh_live_ui()
