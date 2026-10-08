@@ -41,6 +41,8 @@ func _run() -> void:
 	root.add_child(app)
 	await process_frame
 	await process_frame
+	await physics_frame
+	await process_frame
 	var manager: Node = app.manager
 	manager.set_process(false)
 	check(manager.agents.size() == 20, "20 agents initialized")
@@ -53,7 +55,7 @@ func _run() -> void:
 		if shelter["exists"]:
 			existing += 1
 	check(capacities == [2500, 750, 1800, 3500, 5000], "specified capacities")
-	check(app.map_view.shelter_nodes.size() == 5, "only existing shelters drawn")
+	check(app.map_view.shelter_nodes.size() == existing, "only existing shelters drawn")
 	check(app.shelter_list.get_child_count() == 5, "absent shelter still has a sidebar record")
 	check(manager.shelters[2]["resources"] == "Unknown", "S3 supplies described as unknown")
 	check(manager.shelters[2]["supplies_person_days"] == null, "unknown quantity is null, never zero")
@@ -101,37 +103,46 @@ func _run() -> void:
 	check(manager.shelters == original_shelters, "clock does not resample S5")
 	manager.simulation_speed = 1
 	var view: SubViewportContainer = app.map_view
-	var target: Vector2 = view.world_viewport.canvas_transform * manager.agents[0]["position"]
+	# A building may occlude an agent in a perspective view. Click a genuinely visible bean.
+	var selected_agent: Dictionary = {}
+	var target := Vector2.ZERO
+	for node in view.agent_nodes:
+		var projected: Vector2 = view.screen_point(node)
+		if Rect2(Vector2.ZERO,view.size).has_point(projected) and view.pick_entity(projected) == node:
+			selected_agent = node.record
+			target = projected
+			break
+	check(not selected_agent.is_empty(), "at least one agent selectable from initial perspective")
 	click(view, target)
 	await process_frame
-	check(is_instance_valid(view.selected_node) and view.selected_node.record["id"] == manager.agents[0]["id"], "map agent click selects agent")
-	check(app.details.text.contains(manager.agents[0]["id"]), "agent inspector updates")
+	check(is_instance_valid(view.selected_node) and view.selected_node.record["id"] == selected_agent.get("id", "missing"), "map agent click selects agent")
+	check(app.details.text.contains(selected_agent.get("id", "missing")), "agent inspector updates")
 	check(is_instance_valid(view.selected_node) and view.selected_node.is_selected, "selection highlight is enabled")
-	target = view.world_viewport.canvas_transform * manager.shelters[0]["position"]
+	target = view.screen_point(view.shelter_nodes[0], Vector3(0,3.3,4.1))
 	click(view, target)
 	await process_frame
 	check(is_instance_valid(view.selected_node) and view.selected_node.record["id"] == "S1", "map shelter click selects shelter")
-	check(app.details.text.contains("Public size"), "observer inspector shows approximate size")
+	check(app.details.text.contains("Capacity: 2500"), "director inspector shows actual capacity")
 	var s3_card: Control = app.shelter_list.get_child(2)
 	app.sidebar_scroll.ensure_control_visible(s3_card)
 	await process_frame
 	click(s3_card, s3_card.size / 2)
 	await process_frame
 	check(app.details.text.contains("Unknown"), "sidebar shelter selection shows unknown supplies")
-	var zoom_before: float = view.camera.zoom.x
+	var zoom_before: float = view.camera_rig.target_distance
 	var wheel := InputEventMouseButton.new()
 	wheel.pressed = true
 	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel.position = view.global_position + view.size / 2
 	root.push_input(wheel, true)
 	await process_frame
-	check(view.camera.zoom.x > zoom_before, "mouse-wheel input zooms camera")
+	check(view.camera_rig.target_distance < zoom_before, "mouse-wheel input zooms camera")
 	wheel = wheel.duplicate()
 	wheel.pressed = false
 	root.push_input(wheel, true)
 	click(view, Vector2(10, 10))
 	await process_frame
-	var keyboard_before: Vector2 = view.camera.position
+	var keyboard_before: Vector3 = view.camera_rig.position
 	var key := InputEventKey.new()
 	key.physical_keycode = KEY_D
 	key.pressed = true
@@ -142,14 +153,14 @@ func _run() -> void:
 	key.pressed = false
 	Input.parse_input_event(key)
 	Input.flush_buffered_events()
-	check(view.camera.position.x > keyboard_before.x, "D key pans camera when map is focused")
-	view.zoom_at(view.size / 2, 1000)
-	check(is_equal_approx(view.camera.zoom.x, 2.5), "maximum zoom clamp")
-	view.zoom_at(view.size / 2, 0.0001)
-	check(is_equal_approx(view.camera.zoom.x, 0.3), "minimum zoom clamp")
-	var camera_before: Vector2 = view.camera.position
+	check(view.camera_rig.position.x > keyboard_before.x, "D key pans camera when map is focused")
+	view.camera_rig.zoom_steps(-1000)
+	check(is_equal_approx(view.camera_rig.target_distance, 260), "maximum zoom clamp")
+	view.camera_rig.zoom_steps(1000)
+	check(is_equal_approx(view.camera_rig.target_distance, 16), "minimum zoom clamp")
+	var camera_before: Vector3 = view.camera_rig.target_focus
 	view.pan_camera(Vector2.RIGHT, 0.2)
-	check(view.camera.position.x > camera_before.x, "camera pan changes position")
+	check(view.camera_rig.target_focus.x > camera_before.x, "camera pan changes position")
 	await process_frame
 	click(app.reset_button, app.reset_button.size / 2)
 	await process_frame

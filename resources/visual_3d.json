@@ -1,0 +1,23 @@
+{
+  "camera": {
+    "move_speed": 36.0,
+    "zoom_sensitivity": 0.12,
+    "rotation_sensitivity": 0.25,
+    "tilt_sensitivity": 0.15,
+    "smoothing": 9.0,
+    "min_distance": 16.0,
+    "max_distance": 260.0,
+    "overview_distance": 145.0,
+    "overview_yaw_degrees": 45.0,
+    "overview_pitch_degrees": 45.0,
+    "min_pitch_degrees": 30.0,
+    "max_pitch_degrees": 70.0,
+    "field_of_view": 50.0,
+    "bounds_min": [0.0, 0.0],
+    "bounds_max": [180.0, 108.0],
+    "overview_focus": [90.0, 54.0]
+  },
+  "shadows_enabled": true,
+  "agent_bob_height": 0.07,
+  "navigation_debug": false
+}

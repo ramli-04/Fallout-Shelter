@@ -1,8 +1,8 @@
 # ESSAIM Phase 2: nuclear evacuation
 
-> Historical Phase 2 guide. The current project implements Phase 2.5;
-> read [PHASE_25_GUIDE.md](PHASE_25_GUIDE.md) for the current separate Start/Launch
-> controls, incomplete knowledge, personalities, incidents and false alarms.
+> Historical Phase 2 guide. The current project implements Phase 2.6;
+> read [PHASE_26_GUIDE.md](PHASE_26_GUIDE.md) for the 3D city, Director camera,
+> current controls and manual tests. Phase 2.5 cognition and incidents are preserved.
 
 This extends the existing Godot project. Everything still runs in GDScript, with
 no plugins, Python, API keys, or downloaded graphics/audio. It ends at impact:

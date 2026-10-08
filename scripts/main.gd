@@ -3,10 +3,10 @@ extends Control
 
 const Dashboard = preload("res://scripts/dashboard.gd")
 const Manager = preload("res://scripts/simulation_manager.gd")
-const MapView = preload("res://scripts/map_view.gd")
+const MapView = preload("res://scripts/map_view_3d.gd")
 const Inspector = preload("res://scripts/object_inspector.gd")
 const Effects = preload("res://scripts/evacuation_effects.gd")
-const WorldView = preload("res://scripts/world_projection.gd")
+const director_mode := true
 
 var manager: Node
 var map_view: SubViewportContainer
@@ -35,13 +35,15 @@ var selected_kind := "none"
 var selected_id := ""
 var ui_dirty := false
 var ui_refresh_time := 0.0
-var director_mode := false
-var mode_picker: OptionButton
 var launch_button: Button
 var false_alarm_button: Button
 var random_button: Button
 var export_button: Button
 var environment_feed: RichTextLabel
+var warning_label: Label
+var inspector_scroll_generation := 0
+var agent_picker: OptionButton
+var inspector_header: Label
 
 
 func _ready() -> void:
@@ -57,16 +59,18 @@ func _ready() -> void:
 	manager.setup_failed.connect(_on_setup_failed)
 	manager.simulation_updated.connect(_on_simulation_updated)
 	manager.siren_activated.connect(effects.sound_siren)
+	manager.siren_activated.connect(_on_siren_visual)
 	manager.clock_changed.connect(effects.set_clock_active)
 	manager.impact_occurred.connect(_on_impact)
 	manager.all_clear.connect(_on_all_clear)
 	map_view.object_selected.connect(_on_object_selected)
+	agent_picker.item_selected.connect(func(index: int):
+		if index > 0: map_view.select_agent(manager.agents[index-1]))
 	start_button.pressed.connect(manager.start)
 	launch_button.pressed.connect(manager.launch_nuke)
 	false_alarm_button.pressed.connect(manager.launch_nuke.bind(true))
 	random_button.pressed.connect(_on_random_run)
 	export_button.pressed.connect(_export_trace)
-	mode_picker.item_selected.connect(_change_mode)
 	pause_button.pressed.connect(manager.pause)
 	reset_button.pressed.connect(manager.initialize_run)
 	new_run_button.pressed.connect(_on_new_run)
@@ -110,7 +114,7 @@ func _build_top_bar(layout: VBoxContainer) -> void:
 	var row := Dashboard.row(22)
 	panel.add_child(row)
 	var title := Dashboard.column(3)
-	title.add_child(Dashboard.label("URBAN RESILIENCE LAB   /   LIVING WORLD 2.5", 12, Dashboard.ACCENT))
+	title.add_child(Dashboard.label("DIRECTOR LAB   /   3D FOUNDATION 2.6", 12, Dashboard.ACCENT))
 	title.add_child(Dashboard.label("ESSAIM — LA DERNIÈRE CHANCE", 22))
 	row.add_child(title)
 	row.add_child(Dashboard.spacer())
@@ -148,9 +152,12 @@ func _build_map(body: HBoxContainer) -> void:
 	var content := Dashboard.column(10)
 	panel.add_child(content)
 	var heading := Dashboard.row()
-	heading.add_child(Dashboard.label("CITY OVERVIEW", 16))
+	heading.add_child(Dashboard.label("CITY / DIRECTOR VIEW", 16))
 	heading.add_child(Dashboard.spacer())
-	var fit_button := Dashboard.button("Fit map")
+	warning_label = Dashboard.label("NUCLEAR ALERT / EVACUATE",14,Color("f0b76a"))
+	warning_label.visible = false
+	heading.add_child(warning_label)
+	var fit_button := Dashboard.button("Home / overview")
 	heading.add_child(fit_button)
 	content.add_child(heading)
 	map_view = MapView.new()
@@ -160,7 +167,7 @@ func _build_map(body: HBoxContainer) -> void:
 	map_view.custom_minimum_size = Vector2(350, 240)
 	content.add_child(map_view)
 	fit_button.pressed.connect(map_view.fit_camera)
-	var legend := Dashboard.label("Blue: moving  ·  Green: sheltered  ·  Gold: rejected  ·  Red: exposed  |  + Authority  |  WASD / arrows + wheel", 12, Dashboard.MUTED)
+	var legend := Dashboard.label("WASD / arrows: pan  |  Wheel: zoom  |  Middle drag: pan  |  Right drag: orbit / tilt  |  Double-click / F: focus agent  |  Home: overview", 12, Dashboard.MUTED)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(legend)
 
@@ -181,7 +188,14 @@ func _build_sidebar(body: HBoxContainer) -> void:
 	shelter_list = Dashboard.column(7)
 	column.add_child(shelter_list)
 	column.add_child(HSeparator.new())
-	column.add_child(Dashboard.label("OBJECT INSPECTOR", 16, Dashboard.ACCENT))
+	inspector_header = Dashboard.label("OBJECT INSPECTOR", 16, Dashboard.ACCENT)
+	column.add_child(inspector_header)
+	agent_picker = OptionButton.new()
+	agent_picker.fit_to_longest_item = false
+	agent_picker.clip_text = true
+	agent_picker.custom_minimum_size = Vector2(275,34)
+	agent_picker.tooltip_text = "Inspect agents outdoors or inside a shelter."
+	column.add_child(agent_picker)
 	details = RichTextLabel.new()
 	details.bbcode_enabled = true
 	details.fit_content = true
@@ -229,7 +243,6 @@ func _build_controls(layout: VBoxContainer) -> void:
 	launch_button = Dashboard.button("Launch nuke", true)
 	row.add_child(launch_button)
 	false_alarm_button = Dashboard.button("False alarm")
-	false_alarm_button.visible = false
 	row.add_child(false_alarm_button)
 	row.add_child(pause_button)
 	row.add_child(reset_button)
@@ -238,10 +251,7 @@ func _build_controls(layout: VBoxContainer) -> void:
 	for speed in [1, 2, 5, 10]:
 		speed_picker.add_item("%dx" % speed, speed)
 	row.add_child(speed_picker)
-	mode_picker = OptionButton.new()
-	mode_picker.add_item("Observer mode")
-	mode_picker.add_item("Director mode")
-	row.add_child(mode_picker)
+	row.add_child(Dashboard.label("DIRECTOR", 13, Dashboard.ACCENT))
 	var seed_row := Dashboard.row(10)
 	layout.add_child(seed_row)
 	row = seed_row
@@ -257,7 +267,6 @@ func _build_controls(layout: VBoxContainer) -> void:
 	random_button = Dashboard.button("New random simulation")
 	row.add_child(random_button)
 	export_button = Dashboard.button("Export trace")
-	export_button.visible = false
 	row.add_child(export_button)
 	row.add_child(Dashboard.spacer())
 	clock_label = Dashboard.label("Elapsed  00:00", 14)
@@ -268,16 +277,23 @@ func _build_controls(layout: VBoxContainer) -> void:
 
 func _on_run_initialized() -> void:
 	effects.stop_siren()
+	warning_label.visible = false
 	summary_panel.visible = false
 	for child in shelter_list.get_children():
 		shelter_list.remove_child(child)
 		child.queue_free()
-	for record in WorldView.shelters(manager.shelters, director_mode):
+	for record in manager.shelters:
 		var card := Dashboard.shelter_card(record)
 		card.pressed.connect(map_view.select_shelter.bind(record))
 		shelter_list.add_child(card)
-	map_view.display_run(manager.agents, WorldView.shelters(manager.shelters, director_mode))
+	map_view.display_run(manager.agents, manager.shelters)
 	count_label.text = str(manager.agents.size())
+	agent_picker.clear()
+	agent_picker.add_item("Inspect any agent / indoors too")
+	agent_picker.set_item_disabled(0,true)
+	for agent in manager.agents:
+		agent_picker.add_item("%s / %s" % [agent["id"],agent["state"]])
+	agent_picker.select(0)
 	seed_label.text = "SEED %d  /  REPRODUCIBLE RESET" % manager.seed_value
 	speed_label.text = "SPEED  %dx" % int(manager.simulation_speed) if is_equal_approx(manager.simulation_speed, round(manager.simulation_speed)) else "SPEED  %.1fx" % manager.simulation_speed
 	event_feed.clear()
@@ -291,10 +307,12 @@ func _on_run_initialized() -> void:
 
 
 func _on_clock_changed(elapsed: float, active: bool) -> void:
+	if not active and not manager.agents.is_empty():
+		map_view.sync_run(manager.agents,manager.shelters,1,false,manager.elapsed_seconds)
 	clock_label.text = "Elapsed  %s" % _format_time(elapsed)
-	countdown_label.text = "Unknown" if manager.phase == "EVACUATION" and not director_mode else _format_time(ceil(manager.remaining_seconds)) if manager.phase == "EVACUATION" else "--:--"
+	countdown_label.text = _format_time(ceil(manager.remaining_seconds)) if manager.phase == "EVACUATION" else "--:--"
 	status_label.text = manager.phase.capitalize() + (" / Running" if active else " / Paused")
-	if director_mode and manager.phase == "EVACUATION":
+	if manager.phase == "EVACUATION":
 		status_label.text += " / " + ("Real" if manager.alarm_is_real else "False")
 	start_button.text = "Start simulation" if manager.phase == "PREPARATION" else "Resume"
 	start_button.disabled = active or manager.phase in ["IMPACT", "ALL_CLEAR"]
@@ -306,8 +324,6 @@ func _on_clock_changed(elapsed: float, active: bool) -> void:
 
 
 func _on_event_logged(entry: Dictionary) -> void:
-	if not director_mode and entry.get("visibility", "public") == "director":
-		return
 	event_feed.add_text("[%s]  %-8s  %s\n" % [_format_time(entry["time"]), entry["category"], entry["message"]])
 	if entry["category"] in ["ENVIRONMENT", "OBSERVED", "RELAY"]:
 		environment_feed.add_text("[%s] %s\n" % [_format_time(entry["time"]), entry["message"]])
@@ -316,11 +332,29 @@ func _on_event_logged(entry: Dictionary) -> void:
 func _on_object_selected(kind: String, record: Dictionary) -> void:
 	selected_kind = kind
 	selected_id = record.get("id", "")
+	agent_picker.select(0)
+	if kind == "agent":
+		for index in range(manager.agents.size()):
+			if manager.agents[index]["id"] == selected_id:
+				agent_picker.select(index+1)
+				break
 	_refresh_inspector()
+	inspector_scroll_generation += 1
 	if kind != "none":
-		sidebar_scroll.ensure_control_visible.call_deferred(details)
+		_scroll_to_inspector(inspector_scroll_generation)
 	else:
 		sidebar_scroll.set_deferred("scroll_vertical", 0)
+
+
+func _scroll_to_inspector(generation: int) -> void:
+	# RichTextLabel fit-content changes settle after layout. Avoid scrolling beyond a
+	# newly shortened inspector when switching from a long agent record to a shelter.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if generation != inspector_scroll_generation: return
+	var scrollbar := sidebar_scroll.get_v_scroll_bar()
+	var limit := maxi(0,int(scrollbar.max_value-scrollbar.page))
+	sidebar_scroll.scroll_vertical = mini(limit,maxi(0,int(inspector_header.position.y)-4))
 
 
 func _refresh_inspector() -> void:
@@ -330,14 +364,14 @@ func _refresh_inspector() -> void:
 				details.text = Inspector.agent_text(agent)
 				return
 	elif selected_kind == "shelter":
-		details.text = Inspector.shelter_text(WorldView.shelter(manager.shelter_by_id[selected_id], director_mode))
+		details.text = Inspector.shelter_text(manager.shelter_by_id[selected_id])
 		return
-	details.text = "[color=#8da3bb]Select an agent or shelter. Start simulation activates the city. Launch nuke sounds the siren.\n\nObserver mode hides world secrets. Director mode reveals them without changing agents.[/color]"
+	details.text = "[color=#8da3bb]Click a 3D agent or shelter to inspect. Start simulation activates the city; Launch nuke sounds the siren.\n\nDirector sees world truth. Agents continue to use their own partial knowledge. Scroll this panel for beliefs and memories.[/color]"
 
 
 func _on_simulation_updated() -> void:
 	var alpha: float = manager.accumulator / float(manager.settings["evacuation"]["fixed_step_seconds"])
-	map_view.sync_run(manager.agents, WorldView.shelters(manager.shelters, director_mode), alpha, manager.running)
+	map_view.sync_run(manager.agents, manager.shelters, alpha, manager.running, manager.elapsed_seconds)
 	map_view.event_visuals.sync(manager.environment_events, director_mode)
 	ui_dirty = true
 
@@ -353,13 +387,20 @@ func _process(delta: float) -> void:
 func _refresh_live_ui() -> void:
 	var totals: Dictionary = manager.get_totals()
 	totals_label.text = "%d / %d" % [totals["sheltered"], totals["exposed"]]
+	for index in range(manager.agents.size()):
+		var agent: Dictionary = manager.agents[index]
+		var text := "%s / %s" % [agent["id"],agent["state"]]
+		if agent_picker.get_item_text(index+1) != text:
+			agent_picker.set_item_text(index+1,text)
 	for index in range(manager.shelters.size()):
-		Dashboard.update_shelter_card(shelter_list.get_child(index), WorldView.shelter(manager.shelters[index], director_mode))
+		Dashboard.update_shelter_card(shelter_list.get_child(index), manager.shelters[index])
 	_refresh_inspector()
 
 
 func _on_impact(result: Dictionary) -> void:
 	effects.stop_siren()
+	warning_label.text = "IMPACT / EVACUATION STOPPED"
+	warning_label.visible = true
 	map_view.show_impact()
 	summary_panel.visible = true
 	summary_label.text = "IMPACT  •  %d sheltered / %d exposed / %d total. Evacuation and admissions stopped. Survival outcomes are reserved for Phase 3." % [result["sheltered"], result["exposed"], result["population"]]
@@ -380,33 +421,20 @@ func _on_random_run() -> void:
 	manager.new_run(chosen)
 
 
-func _change_mode(index: int) -> void:
-	director_mode = index == 1
-	false_alarm_button.visible = director_mode
-	export_button.visible = director_mode
-	# Rebuild only view nodes, preserving clock, agents, RNG streams and camera.
-	var camera_position: Vector2 = map_view.camera.position
-	var camera_zoom: Vector2 = map_view.camera.zoom
-	map_view.display_run(manager.agents, WorldView.shelters(manager.shelters, director_mode), false)
-	map_view.camera.position = camera_position
-	map_view.camera.zoom = camera_zoom
-	map_view.camera.force_update_scroll()
-	map_view.event_visuals.sync(manager.environment_events, director_mode)
-	if manager.phase == "IMPACT":
-		map_view.show_impact()
-	event_feed.clear()
-	environment_feed.clear()
-	for entry in manager.events:
-		_on_event_logged(entry)
-	_on_clock_changed(manager.elapsed_seconds, manager.running)
-	_refresh_live_ui()
-
-
 func _on_all_clear() -> void:
 	effects.stop_siren()
+	warning_label.text = "ALL CLEAR"
+	warning_label.visible = true
+	map_view.city.set_warning(false)
 	summary_panel.visible = true
 	summary_label.text = "ALL CLEAR / False alarm. No nuclear impact occurred."
 	_refresh_live_ui()
+
+
+func _on_siren_visual() -> void:
+	warning_label.text = "NUCLEAR ALERT / EVACUATE"
+	warning_label.visible = true
+	map_view.show_warning()
 
 
 func _export_trace() -> void:

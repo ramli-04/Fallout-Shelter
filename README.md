@@ -1,8 +1,9 @@
 # ESSAIM — La Dernière Chance
 
 Academic multi-agent simulation for **Mondes Vivants — 5A IA & Big Data**.
-The existing Godot project now implements **Phase 2.5: living world, incidents,
-personalities and rumors**, extending Phases 1 and 2 entirely in GDScript.
+The existing Godot project now implements **Phase 2.6: a complete primitive 3D
+city and Sims-style Director camera**, preserving the Phase 2.5 simulation
+entirely in GDScript.
 
 ## Run
 
@@ -27,17 +28,20 @@ $GodotExe = 'C:\Users\Moham\Downloads\godot\Godot_v4.7.2-stable_win64_console.ex
 - **Reset same scenario** restores the current seed, profiles, truth and incidents.
 - **New random simulation** generates and displays a new seed. **Use seed**
   initializes exactly the value in the seed field.
-- **Observer mode** hides actual capacities, occupancy, maintenance, alarm truth
-  and impact timing. **Director mode** reveals them without changing outcomes.
-  Its **False alarm** button forces a fake warning for demonstrations.
+- **Director is the only viewing mode.** Its **False alarm** button forces a
+  fake warning for demonstrations. Inspection never gives agents Director knowledge.
 - Click an agent and scroll the sidebar for its 0–100 traits, panic, goal,
   shelter beliefs, rumors, memories and decisions. Click a shelter/card to inspect it.
 - **Journal / Environment** tabs show timestamped decisions and incident reports.
-- **WASD/arrows**, mouse wheel and **Fit map** control the map camera.
+- With the pointer over the city: **WASD/arrows** pan, **wheel** zooms,
+  **middle drag** pans, **right drag** orbits/tilts, **double-click/F** focuses
+  an agent and **Home** restores the diagonal overview. UI input stays separate.
+- Admitted agents disappear outdoors; the inspector's **agent picker** still
+  lets you inspect their records inside shelters.
 - Director **Export trace** saves a JSON trace; its full path appears in the journal.
 
 All five academic shelter configurations remain editable. S5 exists in 50% of
-seeded scenarios; **S5 ?** is a rumored site in Observer mode even when absent.
+seeded scenarios; absent S5 has no 3D structure or entrance (try seed **2**).
 Agents start with approximate capacities and discover conditions locally or
 through bounded communication. S3 relays deposited observations. Fifteen
 archetypes influence decisions through individual traits and stress.
@@ -53,10 +57,13 @@ Edit [resources/phase1.json](resources/phase1.json) for the existing city, shelt
 population, speeds and evacuation scoring. Edit
 [resources/living_world.json](resources/living_world.json) for incident probabilities,
 false alarms, perception/communication, approximate knowledge and stress parameters.
+Edit [resources/visual_3d.json](resources/visual_3d.json) for camera speed,
+zoom/tilt limits, smoothing, shadows and navigation debug visualization.
 Stop and press F5 after editing; Reset uses already loaded settings.
 
-Read [the Phase 2.5 beginner guide](docs/PHASE_25_GUIDE.md) for assumptions,
-architecture, file changes, reproducibility, trace export and manual demonstrations.
+Read [the Phase 2.6 beginner guide](docs/PHASE_26_GUIDE.md) for controls,
+architecture, the complete file list, navigation choices and manual tests.
+The [Phase 2.5 guide](docs/PHASE_25_GUIDE.md) retains cognitive/event assumptions.
 Earlier phase guides are preserved as historical documentation.
 
 ## Validation
@@ -66,20 +73,27 @@ Earlier phase guides are preserved as historical documentation.
 & $GodotExe --headless --path . --script res://tests/test_phase1.gd
 & $GodotExe --headless --path . --script res://tests/test_phase2.gd
 & $GodotExe --headless --path . --script res://tests/test_phase25.gd
+& $GodotExe --headless --path . --script res://tests/test_phase26.gd
 # Actual viewport screenshots, saved to ignored outputs/:
-& $GodotExe --path . --script res://tests/render_phase25.gd
+& $GodotExe --path . --script res://tests/render_phase26.gd
 ```
 
-Executed on Godot 4.7.2: **1435 + 253 + 1093 checks, zero failures**.
+Executed on Godot 4.7.2: **1436 + 253 + 1093 + 427 checks, zero failures**.
 Across 512 seeded scenarios, S5 existed 264 times (**51.6%**) and nine false
 alarms were sampled. Tests include hidden-state isolation, local rumor disagreement,
 S3 relay, autonomous incident effects and clearance, deterministic replay, safe
 false alarms, original scene/camera/clock regressions and JSON export.
+The 3D suite verifies connected Godot navigation paths, building clearance,
+raycast selection, camera/UI isolation, absent-S5 visuals, indoor inspection and
+identical full evacuation results against an independent simulation controller.
 Godot import can exit zero after logging an error; inspect console output too.
 
 The default 20-person population cannot overcrowd the academic shelter capacities.
 Temporary capacity-one demos and automated boundary tests exercise rejection.
-Road routes use the existing grid; there is no detailed traffic/collision model.
+Movement retains the deterministic road planner and maps its positions onto XZ.
+The connected NavigationMesh and each NavigationAgent3D maintain valid 3D paths
+without replacing the model's clock or route. There is no crowd pushing/RVO,
+detailed traffic model or walkable shelter interior.
 Ten-day survival and rationing, LLMs, Kafka and Storyteller controls remain future
 work. Earlier `Main.py`, Python models/simulation/configuration and Python tests
 are preserved but do not control the Godot game.

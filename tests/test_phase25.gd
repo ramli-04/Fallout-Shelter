@@ -259,21 +259,23 @@ func _run() -> void:
 	app.manager.set_process(false)
 	app.manager.living["false_alarm_probability"] = 0
 	app.manager.initialize_run()
-	check(app.countdown_label.text == "--:--" and not app.director_mode, "observer is default")
+	check(app.countdown_label.text == "--:--" and app.director_mode, "director is the only viewing mode")
 	app.start_button.pressed.emit()
 	check(app.manager.phase == "LIVING" and not app.effects.player.playing, "Start button does not sound siren")
 	app.launch_button.pressed.emit()
-	check(app.countdown_label.text == "Unknown" and app.effects.player.playing, "observer siren without deadline leak")
+	check(app.countdown_label.text != "Unknown" and app.effects.player.playing, "director sees actual deadline while siren sounds")
 	app.manager.advance_clock(10)
 	var state: Array = app.manager.agents.duplicate(true)
 	var logs: Array = app.manager.events.duplicate(true)
 	var clock: float = app.manager.elapsed_seconds
-	var camera_position: Vector2 = app.map_view.camera.position
-	app.mode_picker.select(1)
-	app.mode_picker.item_selected.emit(1)
+	var camera_position: Vector3 = app.map_view.camera_rig.position
+	app.map_view.camera_rig.pan(Vector2.RIGHT, 1)
+	app.map_view.camera_rig.rotate_drag(Vector2(30,10))
+	app.map_view.camera_rig.zoom_steps(1)
+	app.map_view.camera_rig.advance(0.2)
 	await process_frame
-	check(app.manager.agents == state and app.manager.events == logs and app.manager.elapsed_seconds == clock, "display toggle never mutates engine")
-	check(app.map_view.camera.position == camera_position, "display toggle preserves camera")
+	check(app.manager.agents == state and app.manager.events == logs and app.manager.elapsed_seconds == clock, "3D camera never mutates engine")
+	check(app.map_view.camera_rig.position != camera_position, "3D camera actually moved")
 	check(app.countdown_label.text != "Unknown" and app.false_alarm_button.visible, "director reveals deadline and manual false alarm")
 	app.export_button.pressed.emit()
 	var trace_path := "user://essaim_trace_%d.json" % app.manager.seed_value
@@ -290,8 +292,7 @@ func _run() -> void:
 	app.seed_picker.value = 42
 	app.new_run_button.pressed.emit()
 	check(app.manager.seed_value == 42, "Use seed honors chosen value exactly")
-	app._change_mode(0)
-	check(not app.event_feed.get_parsed_text().contains("Hidden warning") and app.map_view.shelter_nodes.size() == 5, "observer log and geometry conceal secrets")
+	check(app.event_feed.get_parsed_text().contains("Hidden warning") and app.map_view.shelter_nodes.size() == 5, "director sees scenario truth")
 	app.queue_free()
 	await process_frame
 	await create_timer(0.3).timeout

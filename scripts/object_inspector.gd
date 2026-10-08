@@ -30,4 +30,10 @@ static func agent_text(agent: Dictionary, _remaining: float = 0) -> String:
 static func shelter_text(record: Dictionary) -> String:
 	if record.get("observer_masked", false):
 		return "[b]%s / %s[/b]\nPublic size: %s\nSupplies: %s\nDistance: %s\n%s\n\nExistence, exact capacity, occupancy, maintenance and stocks are unverified here. Inspect agents for their own evidence. S5 ? marks a rumored site." % [record["id"], record["name"], record["known_information"]["size"], record["resources"], record["distance"], record["special"]]
-	return "[b]%s / %s / DIRECTOR[/b]\nExists: %s\nStatus: %s\nCapacity: %d\nOccupancy: %d\nDoor: %s\nMaintenance: %.0f / 100\nSupply: %.0f person-days\nResources: %s\nDistance: %s\n%s\n\nEvent history: %s\nStocks are not consumed until Phase 3." % [record["id"], record["name"], record["exists"], record["operational_status"], record["capacity"], record["occupancy"], record["door_status"], record["maintenance_condition"], record["supply_level"], record["resources"], record["distance"], record["special"], str(record["event_history"])]
+	var history := "No incidents recorded.\n"
+	if not record["event_history"].is_empty():
+		history = ""
+		for entry in record["event_history"].slice(-6):
+			var seconds := int(entry["time"])
+			history += "%02d:%02d / %s %s\n" % [seconds/60,seconds%60,entry["event_id"],entry["action"]]
+	return "[b]%s / %s / DIRECTOR[/b]\nExists: %s\nStatus: %s\nCapacity: %d\nOccupancy: %d\nDoor: %s\nMaintenance: %.0f / 100\nSupply: %.0f person-days\nResources: %s\nDistance: %s\n%s\n\nRecent incidents:\n%s\nStocks are not consumed until Phase 3." % [record["id"], record["name"], record["exists"], record["operational_status"], record["capacity"], record["occupancy"], record["door_status"], record["maintenance_condition"], record["supply_level"], record["resources"], record["distance"], record["special"], history]

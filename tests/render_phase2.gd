@@ -33,7 +33,7 @@ func _capture() -> void:
 	app.manager.start()
 	app.manager.launch_nuke()
 	app.manager.advance_clock(30)
-	app.map_view.select_at(app.map_view.agent_nodes[0].position)
+	app.map_view.select_at(app.map_view.screen_point(app.map_view.agent_nodes[0]))
 	app._refresh_live_ui()
 	await save_capture(prefix + "-evacuation.png")
 	# Advance using the same fixed simulation clock, not a fabricated display state.

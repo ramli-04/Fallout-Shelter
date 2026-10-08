@@ -1,5 +1,10 @@
 # ESSAIM Phase 2.5: living world
 
+> Historical Phase 2.5 guide. The current project implements Phase 2.6 with a
+> 3D city and Director-only viewing. Read [PHASE_26_GUIDE.md](PHASE_26_GUIDE.md)
+> for current launch/camera/inspection controls; the modeling assumptions below
+> still describe the preserved simulation.
+
 Open the **existing** `project.godot` in Godot 4 and press **F5**. No nodes,
 signals, plugins, accounts, Python services or API keys need manual setup.
 Tested with the installed Godot **4.7.2 stable**. The original main, agent and
@@ -207,8 +212,9 @@ press F5, Start, Launch, then select 10x and Director mode. Its onset is schedul
 not immediate. Use the Environment tab and watch the affected entrance/map ring;
 put agents nearby to see who learns about it. Restore original probabilities.
 Use Director False alarm to test the all-clear reliably. Reset and repeat at the
-same launch time to compare histories. Try an absent-S5 seed (e.g. **0**) and
-compare Observer/Director map views: only Director reveals absence in advance.
+same launch time to compare histories. Try an absent-S5 seed (e.g. **2**) and
+compare the historical Observer/Director behavior. In current Phase 2.6, use
+verified seed **2** and Director's 3D/sidebar inspection instead.
 
 Default capacities greatly exceed the 20-person prototype. To demonstrate full
 entrance rejection, temporarily set a capacity to **1** in `phase1.json`, run,

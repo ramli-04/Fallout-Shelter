@@ -1,8 +1,8 @@
 # ESSAIM: your first Godot project
 
-> This is the historical Phase 1 guide. The current project implements Phase 2.5;
-> read [PHASE_25_GUIDE.md](PHASE_25_GUIDE.md) for the current Start behavior,
-> countdown, movement, admissions, speed controls and impact.
+> This is the historical Phase 1 guide. The current project implements Phase 2.6;
+> read [PHASE_26_GUIDE.md](PHASE_26_GUIDE.md) for the 3D city, Director camera,
+> current controls, admission and impact demonstrations.
 
 This delivery implements **Phase 1: the visual prototype**. It runs entirely in
 Godot with GDScript. No Python, plugins, downloaded artwork, accounts, or API keys
