@@ -44,6 +44,20 @@ var warning_label: Label
 var inspector_scroll_generation := 0
 var agent_picker: OptionButton
 var inspector_header: Label
+var settings_panel: PanelContainer
+var controls_dock: PanelContainer
+var fullscreen_button: Button
+var drawer: VBoxContainer
+var inspector_panel: PanelContainer
+var logs_panel: PanelContainer
+var shelter_group: VBoxContainer
+var drawer_title: Label
+var drawer_buttons := {}
+var active_drawer := ""
+var intro_panel: PanelContainer
+var windowed_size := Vector2i(1440, 900)
+var windowed_position := Vector2i.ZERO
+var ai_status_label: Label
 
 
 func _ready() -> void:
@@ -66,7 +80,7 @@ func _ready() -> void:
 	map_view.object_selected.connect(_on_object_selected)
 	agent_picker.item_selected.connect(func(index: int):
 		if index > 0: map_view.select_agent(manager.agents[index-1]))
-	start_button.pressed.connect(manager.start)
+	start_button.pressed.connect(_start_map_view)
 	launch_button.pressed.connect(manager.launch_nuke)
 	false_alarm_button.pressed.connect(manager.launch_nuke.bind(true))
 	random_button.pressed.connect(_on_random_run)
@@ -80,101 +94,122 @@ func _ready() -> void:
 
 
 func _build_dashboard() -> void:
-	var background := ColorRect.new()
-	background.color = Color("0a1421")
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(background)
-	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 20)
-	add_child(margin)
-	var layout := Dashboard.column(14)
-	margin.add_child(layout)
-	_build_top_bar(layout)
+	theme = Dashboard.light_theme()
+	map_view = MapView.new()
+	map_view.name = "CityViewport"
+	map_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(map_view)
+	var hud := Dashboard.column(6)
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(hud)
+	hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	hud.offset_left = 16
+	hud.offset_top = 16
+	hud.offset_right = -16
+	_build_top_bar(hud)
 	summary_panel = Dashboard.panel()
 	summary_panel.visible = false
-	summary_label = Dashboard.label("", 16, Color("f0b76a"))
+	summary_label = Dashboard.label("", 14, Color("a05b22"))
 	summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	summary_panel.add_child(summary_label)
-	layout.add_child(summary_panel)
-	var body := Dashboard.row(14)
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	layout.add_child(body)
-	_build_map(body)
-	_build_sidebar(body)
-	_build_event_panel(layout)
-	_build_controls(layout)
+	hud.add_child(summary_panel)
+	var rail := Dashboard.column(8)
+	add_child(rail)
+	rail.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	rail.offset_left = -64
+	rail.offset_right = -16
+	rail.offset_top = 112
+	for entry in [["agents", "Agents"], ["shelters", "Shelters"], ["logs", "Logs"]]:
+		var button := Dashboard.icon_button(entry[0], entry[1])
+		button.toggle_mode = true
+		button.tooltip_text = "Open or collapse " + entry[1].to_lower() + " panel"
+		rail.add_child(button)
+		drawer_buttons[entry[0]] = button
+		button.pressed.connect(_toggle_drawer.bind(entry[0]))
+	drawer = Dashboard.column(8)
+	drawer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(drawer)
+	drawer.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
+	drawer.offset_left = -472
+	drawer.offset_right = -88
+	drawer.offset_top = 112
+	drawer.offset_bottom = -112
+	var heading := Dashboard.panel()
+	drawer.add_child(heading)
+	var heading_row := Dashboard.row(8)
+	heading.add_child(heading_row)
+	drawer_title = Dashboard.label("AGENT INFO", 16, Dashboard.ACCENT)
+	heading_row.add_child(drawer_title)
+	heading_row.add_child(Dashboard.spacer())
+	var close := Dashboard.icon_button("close", "Close panel")
+	heading_row.add_child(close)
+	close.pressed.connect(_toggle_drawer.bind(""))
+	_build_sidebar(drawer)
+	_build_event_panel(drawer)
+	drawer.hide()
+	var dock := Dashboard.panel()
+	controls_dock = dock
+	dock.add_theme_stylebox_override("panel", Dashboard.style(Color(0.98, 0.985, 0.96, 0.5)))
+	add_child(dock)
+	dock.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	dock.offset_left = 16
+	dock.offset_right = -16
+	dock.offset_top = -96
+	dock.offset_bottom = -16
+	var controls := Dashboard.column(8)
+	dock.add_child(controls)
+	_build_controls(controls)
+	_build_settings(drawer)
+	intro_panel = Dashboard.panel()
+	add_child(intro_panel)
+	intro_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	intro_panel.offset_left = -260
+	intro_panel.offset_right = 260
+	intro_panel.offset_top = -90
+	intro_panel.offset_bottom = 90
+	var intro := Dashboard.column(10)
+	intro_panel.add_child(intro)
+	intro.add_child(Dashboard.label("ESSAIM / DIRECTOR VIEW", 24, Dashboard.ACCENT))
+	var hint := Dashboard.label("Press the play icon below to enter the city.\nAgents, shelters and logs open from the right.\nWASD: pan / Wheel: zoom / Right drag: orbit", 16)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.add_child(hint)
 
 
 func _build_top_bar(layout: VBoxContainer) -> void:
 	var panel := Dashboard.panel()
 	layout.add_child(panel)
-	var row := Dashboard.row(22)
-	panel.add_child(row)
-	var title := Dashboard.column(3)
-	title.add_child(Dashboard.label("DIRECTOR LAB   /   3D FOUNDATION 2.6", 12, Dashboard.ACCENT))
-	title.add_child(Dashboard.label("ESSAIM — LA DERNIÈRE CHANCE", 22))
-	row.add_child(title)
+	var column := Dashboard.column(4)
+	panel.add_child(column)
+	var row := Dashboard.row(14)
+	column.add_child(row)
+	row.add_child(Dashboard.label("ESSAIM", 20, Dashboard.ACCENT))
+	status_label = Dashboard.label("Preparation / Ready", 14)
+	row.add_child(status_label)
 	row.add_child(Dashboard.spacer())
-	var phase := Dashboard.column(2)
-	phase.add_child(Dashboard.label("PHASE", 12, Dashboard.MUTED))
-	status_label = Dashboard.label("Preparation • Ready", 16)
-	phase.add_child(status_label)
-	row.add_child(phase)
-	var countdown := Dashboard.column(2)
-	countdown.add_child(Dashboard.label("COUNTDOWN", 12, Dashboard.MUTED))
-	countdown_label = Dashboard.label("--:--", 22)
-	countdown.add_child(countdown_label)
-	row.add_child(countdown)
-	var population := Dashboard.column(2)
-	population.add_child(Dashboard.label("AGENTS", 12, Dashboard.MUTED))
-	count_label = Dashboard.label("20", 22)
-	population.add_child(count_label)
-	row.add_child(population)
-	var outcome := Dashboard.column(2)
-	outcome.add_child(Dashboard.label("SHELTERED / EXPOSED", 11, Dashboard.MUTED))
-	totals_label = Dashboard.label("0 / 0", 20)
-	outcome.add_child(totals_label)
-	row.add_child(outcome)
-	var speed := Dashboard.column(2)
-	speed.add_child(Dashboard.label("SPEED", 11, Dashboard.MUTED))
-	top_speed_label = Dashboard.label("1x", 20, Dashboard.ACCENT)
-	speed.add_child(top_speed_label)
-	row.add_child(speed)
+	countdown_label = Dashboard.label("--:--", 20)
+	row.add_child(countdown_label)
+	count_label = Dashboard.label("150", 16)
+	row.add_child(Dashboard.label("AGENTS", 11, Dashboard.MUTED))
+	row.add_child(count_label)
+	totals_label = Dashboard.label("0 / 0", 16)
+	row.add_child(Dashboard.label("SAFE / EXPOSED", 11, Dashboard.MUTED))
+	row.add_child(totals_label)
+	top_speed_label = Dashboard.label("1x", 16, Dashboard.ACCENT)
+	row.add_child(top_speed_label)
+	var info := Dashboard.row(14)
+	column.add_child(info)
+	ai_status_label = Dashboard.label("AI / DISCONNECTED", 12, Dashboard.MUTED)
+	info.add_child(ai_status_label)
+	info.add_child(Dashboard.spacer())
+	warning_label = Dashboard.label("NUCLEAR ALERT / EVACUATE", 13, Color("a05b22"))
+	warning_label.hide()
+	info.add_child(warning_label)
 
 
-func _build_map(body: HBoxContainer) -> void:
+func _build_sidebar(body: VBoxContainer) -> void:
 	var panel := Dashboard.panel()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(panel)
-	var content := Dashboard.column(10)
-	panel.add_child(content)
-	var heading := Dashboard.row()
-	heading.add_child(Dashboard.label("CITY / DIRECTOR VIEW", 16))
-	heading.add_child(Dashboard.spacer())
-	warning_label = Dashboard.label("NUCLEAR ALERT / EVACUATE",14,Color("f0b76a"))
-	warning_label.visible = false
-	heading.add_child(warning_label)
-	var fit_button := Dashboard.button("Home / overview")
-	heading.add_child(fit_button)
-	content.add_child(heading)
-	map_view = MapView.new()
-	map_view.name = "CityViewport"
-	map_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	map_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	map_view.custom_minimum_size = Vector2(350, 240)
-	content.add_child(map_view)
-	fit_button.pressed.connect(map_view.fit_camera)
-	var legend := Dashboard.label("WASD / arrows: pan  |  Wheel: zoom  |  Middle drag: pan  |  Right drag: orbit / tilt  |  Double-click / F: focus agent  |  Home: overview", 12, Dashboard.MUTED)
-	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	content.add_child(legend)
-
-
-func _build_sidebar(body: HBoxContainer) -> void:
-	var panel := Dashboard.panel()
-	panel.custom_minimum_size.x = 330
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inspector_panel = panel
 	body.add_child(panel)
 	var scroll := ScrollContainer.new()
 	sidebar_scroll = scroll
@@ -183,11 +218,13 @@ func _build_sidebar(body: HBoxContainer) -> void:
 	var column := Dashboard.column(10)
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(column)
-	column.add_child(Dashboard.label("SHELTER NETWORK", 16))
-	column.add_child(Dashboard.label("Five records • click a card to inspect", 13, Dashboard.MUTED))
+	shelter_group = Dashboard.column(8)
+	column.add_child(shelter_group)
+	shelter_group.add_child(Dashboard.label("SHELTER NETWORK", 16))
+	shelter_group.add_child(Dashboard.label("Five records â€¢ click a card to inspect", 13, Dashboard.MUTED))
 	shelter_list = Dashboard.column(7)
-	column.add_child(shelter_list)
-	column.add_child(HSeparator.new())
+	shelter_group.add_child(shelter_list)
+	shelter_group.add_child(HSeparator.new())
 	inspector_header = Dashboard.label("OBJECT INSPECTOR", 16, Dashboard.ACCENT)
 	column.add_child(inspector_header)
 	agent_picker = OptionButton.new()
@@ -207,13 +244,16 @@ func _build_sidebar(body: HBoxContainer) -> void:
 
 func _build_event_panel(layout: VBoxContainer) -> void:
 	var panel := Dashboard.panel()
+	logs_panel = panel
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	layout.add_child(panel)
 	var column := Dashboard.column(5)
 	panel.add_child(column)
 	var heading := Dashboard.row()
 	heading.add_child(Dashboard.label("EVENT JOURNAL", 14))
 	heading.add_child(Dashboard.spacer())
-	seed_label = Dashboard.label("SEED 42  /  REPRODUCIBLE RESET", 12, Dashboard.MUTED)
+	seed_label = Dashboard.label("SEED 42", 12, Dashboard.MUTED)
+	seed_label.tooltip_text = "The same seed recreates the same scenario. Change it in Settings."
 	heading.add_child(seed_label)
 	column.add_child(heading)
 	event_feed = RichTextLabel.new()
@@ -222,6 +262,7 @@ func _build_event_panel(layout: VBoxContainer) -> void:
 	event_feed.scroll_following = true
 	event_feed.add_theme_font_size_override("normal_font_size", 13)
 	var tabs := TabContainer.new()
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(tabs)
 	event_feed.name = "Journal"
 	tabs.add_child(event_feed)
@@ -236,47 +277,71 @@ func _build_event_panel(layout: VBoxContainer) -> void:
 func _build_controls(layout: VBoxContainer) -> void:
 	var row := Dashboard.row(10)
 	layout.add_child(row)
-	start_button = Dashboard.button("Start simulation", true)
-	pause_button = Dashboard.button("Pause")
-	reset_button = Dashboard.button("Reset same scenario")
-	row.add_child(start_button)
-	launch_button = Dashboard.button("Launch nuke", true)
-	row.add_child(launch_button)
-	false_alarm_button = Dashboard.button("False alarm")
-	row.add_child(false_alarm_button)
-	row.add_child(pause_button)
-	row.add_child(reset_button)
+	start_button = Dashboard.icon_button("play", "Start / resume simulation", true)
+	pause_button = Dashboard.icon_button("pause", "Pause simulation")
+	reset_button = Dashboard.icon_button("reset", "Reset the current scenario")
+	launch_button = Dashboard.icon_button("alert", "Launch nuclear alert", true)
+	false_alarm_button = Dashboard.icon_button("false_alarm", "Launch a false alarm")
+	for control in [start_button, pause_button, launch_button, false_alarm_button, reset_button]:
+		row.add_child(control)
+	var home := Dashboard.icon_button("overview", "Fit the city overview")
+	row.add_child(home)
+	home.pressed.connect(map_view.fit_camera)
 	speed_picker = OptionButton.new()
-	speed_picker.custom_minimum_size = Vector2(75, 42)
+	speed_picker.tooltip_text = "Simulation speed"
+	speed_picker.custom_minimum_size = Vector2(75, 48)
 	for speed in [1, 2, 5, 10]:
 		speed_picker.add_item("%dx" % speed, speed)
 	row.add_child(speed_picker)
-	row.add_child(Dashboard.label("DIRECTOR", 13, Dashboard.ACCENT))
-	var seed_row := Dashboard.row(10)
-	layout.add_child(seed_row)
-	row = seed_row
-	row.add_child(Dashboard.label("Seed", 14, Dashboard.MUTED))
+	export_button = Dashboard.icon_button("export", "Export simulation trace")
+	row.add_child(export_button)
+	fullscreen_button = Dashboard.icon_button("fullscreen", "Enter fullscreen / F11")
+	row.add_child(fullscreen_button)
+	fullscreen_button.pressed.connect(_toggle_fullscreen)
+	var settings_button := Dashboard.icon_button("settings", "Scenario settings")
+	settings_button.toggle_mode = true
+	drawer_buttons["settings"] = settings_button
+	row.add_child(settings_button)
+	settings_button.pressed.connect(_toggle_drawer.bind("settings"))
+	row.add_child(Dashboard.spacer())
+	clock_label = Dashboard.label("Elapsed  00:00", 14)
+	row.add_child(clock_label)
+	speed_label = Dashboard.label("SPEED  1x", 14, Dashboard.ACCENT)
+	row.add_child(speed_label)
+
+func _build_settings(parent: VBoxContainer) -> void:
+	settings_panel = Dashboard.panel()
+	settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(settings_panel)
+	var column := Dashboard.column(16)
+	settings_panel.add_child(column)
+	column.add_child(Dashboard.label("SCENARIO SEED", 16, Dashboard.ACCENT))
+	var hint := Dashboard.label("The same seed recreates the same scenario. Applying a seed resets the simulation.", 14, Dashboard.MUTED)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(hint)
 	seed_picker = SpinBox.new()
 	seed_picker.min_value = 0
 	seed_picker.max_value = 2147483646
 	seed_picker.step = 1
-	seed_picker.custom_minimum_size.x = 95
-	row.add_child(seed_picker)
-	new_run_button = Dashboard.button("Use seed")
-	row.add_child(new_run_button)
-	random_button = Dashboard.button("New random simulation")
-	row.add_child(random_button)
-	export_button = Dashboard.button("Export trace")
-	row.add_child(export_button)
-	row.add_child(Dashboard.spacer())
-	clock_label = Dashboard.label("Elapsed  00:00", 14)
-	row.add_child(clock_label)
-	speed_label = Dashboard.label("SPEED  1x", 15, Dashboard.ACCENT)
-	row.add_child(speed_label)
+	seed_picker.custom_minimum_size = Vector2(0, 44)
+	seed_picker.tooltip_text = "Scenario seed (0 to 2147483646)"
+	column.add_child(seed_picker)
+	var actions := Dashboard.row(12)
+	column.add_child(actions)
+	new_run_button = Dashboard.icon_button("apply", "Apply seed and create a new scenario", true)
+	actions.add_child(new_run_button)
+	actions.add_child(Dashboard.label("Apply seed", 14))
+	random_button = Dashboard.icon_button("random", "Create a random scenario")
+	actions.add_child(random_button)
+	actions.add_child(Dashboard.label("Random", 14))
+	column.add_child(Dashboard.label("SEED RANGE / 0 - 2147483646", 12, Dashboard.MUTED))
+	settings_panel.hide()
 
 
 func _on_run_initialized() -> void:
 	effects.stop_siren()
+	intro_panel.show()
+	_toggle_drawer("")
 	warning_label.visible = false
 	summary_panel.visible = false
 	for child in shelter_list.get_children():
@@ -294,7 +359,7 @@ func _on_run_initialized() -> void:
 	for agent in manager.agents:
 		agent_picker.add_item("%s / %s" % [agent["id"],agent["state"]])
 	agent_picker.select(0)
-	seed_label.text = "SEED %d  /  REPRODUCIBLE RESET" % manager.seed_value
+	seed_label.text = "SEED %d" % manager.seed_value
 	speed_label.text = "SPEED  %dx" % int(manager.simulation_speed) if is_equal_approx(manager.simulation_speed, round(manager.simulation_speed)) else "SPEED  %.1fx" % manager.simulation_speed
 	event_feed.clear()
 	environment_feed.clear()
@@ -314,7 +379,7 @@ func _on_clock_changed(elapsed: float, active: bool) -> void:
 	status_label.text = manager.phase.capitalize() + (" / Running" if active else " / Paused")
 	if manager.phase == "EVACUATION":
 		status_label.text += " / " + ("Real" if manager.alarm_is_real else "False")
-	start_button.text = "Start simulation" if manager.phase == "PREPARATION" else "Resume"
+	start_button.tooltip_text = "Start simulation" if manager.phase == "PREPARATION" else "Resume simulation"
 	start_button.disabled = active or manager.phase in ["IMPACT", "ALL_CLEAR"]
 	launch_button.disabled = manager.phase not in ["PREPARATION", "LIVING"]
 	false_alarm_button.disabled = launch_button.disabled
@@ -338,6 +403,8 @@ func _on_object_selected(kind: String, record: Dictionary) -> void:
 			if manager.agents[index]["id"] == selected_id:
 				agent_picker.select(index+1)
 				break
+	if kind in ["agent", "shelter"]:
+		_show_drawer("agents" if kind == "agent" else "shelters")
 	_refresh_inspector()
 	inspector_scroll_generation += 1
 	if kind != "none":
@@ -358,6 +425,7 @@ func _scroll_to_inspector(generation: int) -> void:
 
 
 func _refresh_inspector() -> void:
+	details.visible = (active_drawer == "agents" and selected_kind == "agent") or (active_drawer == "shelters" and selected_kind == "shelter") or selected_kind == "none"
 	if selected_kind == "agent":
 		for agent in manager.agents:
 			if agent["id"] == selected_id:
@@ -366,7 +434,7 @@ func _refresh_inspector() -> void:
 	elif selected_kind == "shelter":
 		details.text = Inspector.shelter_text(manager.shelter_by_id[selected_id])
 		return
-	details.text = "[color=#8da3bb]Click a 3D agent or shelter to inspect. Start simulation activates the city; Launch nuke sounds the siren.\n\nDirector sees world truth. Agents continue to use their own partial knowledge. Scroll this panel for beliefs and memories.[/color]"
+	details.text = "[color=#62736b]Click a 3D agent or shelter to inspect. Start simulation activates the city; Launch nuke sounds the siren.\n\nDirector sees world truth. Agents continue to use their own partial knowledge. Scroll this panel for beliefs and memories.[/color]"
 
 
 func _on_simulation_updated() -> void:
@@ -377,6 +445,8 @@ func _on_simulation_updated() -> void:
 
 
 func _process(delta: float) -> void:
+	if manager != null and manager.ai_bridge != null and ai_status_label != null:
+		ai_status_label.text = "AI / %s / %d agents / queue %d / active %d" % [manager.ai_bridge.status, int(manager.ai_config.get("llm_agent_count", 0)), manager.ai_bridge.decision_queue.size(), manager.ai_bridge.pending.size()]
 	ui_refresh_time += delta
 	if ui_dirty and ui_refresh_time >= 0.1:
 		ui_refresh_time = 0
@@ -403,7 +473,7 @@ func _on_impact(result: Dictionary) -> void:
 	warning_label.visible = true
 	map_view.show_impact()
 	summary_panel.visible = true
-	summary_label.text = "IMPACT  •  %d sheltered / %d exposed / %d total. Evacuation and admissions stopped. Survival outcomes are reserved for Phase 3." % [result["sheltered"], result["exposed"], result["population"]]
+	summary_label.text = "IMPACT  â€¢  %d sheltered / %d exposed / %d total. Evacuation and admissions stopped. Final survival outcomes are not modeled." % [result["sheltered"], result["exposed"], result["population"]]
 	_refresh_live_ui()
 
 
@@ -466,7 +536,7 @@ static func _json_value(value: Variant) -> Variant:
 
 func _on_setup_failed(message: String) -> void:
 	details.text = "Configuration error:\n" + message
-	status_label.text = "Preparation • Error"
+	status_label.text = "Preparation â€¢ Error"
 	start_button.disabled = true
 	pause_button.disabled = true
 	reset_button.disabled = true
@@ -476,3 +546,51 @@ func _on_setup_failed(message: String) -> void:
 static func _format_time(seconds: float) -> String:
 	var whole := int(seconds)
 	return "%02d:%02d" % [whole / 60, whole % 60]
+
+func _start_map_view() -> void:
+	intro_panel.hide()
+	_toggle_drawer("")
+	manager.start()
+	map_view.grab_focus()
+
+func _toggle_drawer(kind: String) -> void:
+	_show_drawer("" if kind == active_drawer else kind)
+
+func _show_drawer(kind: String) -> void:
+	active_drawer = kind
+	drawer.visible = not kind.is_empty()
+	inspector_panel.visible = kind in ["agents", "shelters"]
+	logs_panel.visible = kind == "logs"
+	settings_panel.visible = kind == "settings"
+	shelter_group.visible = kind == "shelters"
+	agent_picker.visible = kind == "agents"
+	inspector_header.text = "AGENT INFO" if kind == "agents" else "SHELTER INFO"
+	drawer_title.text = "SETTINGS" if kind == "settings" else "EVENT LOGS" if kind == "logs" else inspector_header.text
+	for key in drawer_buttons:
+		drawer_buttons[key].set_pressed_no_signal(key == kind)
+	_refresh_inspector()
+	sidebar_scroll.scroll_vertical = 0
+
+func _toggle_fullscreen() -> void:
+	var mode := DisplayServer.window_get_mode()
+	if mode in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		DisplayServer.window_set_size(windowed_size)
+		DisplayServer.window_set_position(windowed_position)
+		fullscreen_button.icon = load("res://resources/icons/fullscreen.svg")
+		fullscreen_button.tooltip_text = "Enter fullscreen / F11"
+	else:
+		windowed_size = DisplayServer.window_get_size()
+		windowed_position = DisplayServer.window_get_position()
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		fullscreen_button.icon = load("res://resources/icons/windowed.svg")
+		fullscreen_button.tooltip_text = "Restore windowed mode / F11"
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F11:
+			_toggle_fullscreen()
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_ESCAPE and not active_drawer.is_empty():
+			_toggle_drawer("")
+			get_viewport().set_input_as_handled()

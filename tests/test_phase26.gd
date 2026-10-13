@@ -77,13 +77,18 @@ func _run() -> void:
 	root.add_child(baseline)
 	baseline.set_process(false)
 	check(baseline.load_settings(), "headless baseline configuration loads")
+	# This deterministic rendering regression compares the original rule simulation.
+	# Live model output is checked separately by test_phase31_real.gd.
+	baseline.ai_config["enabled"] = false
+	app.manager.ai_config["enabled"] = false
+	app.manager.initialize_run()
 	baseline.initialize_run()
 	check(app.manager.agents == baseline.agents and app.manager.shelters == baseline.shelters and app.manager.environment_events == baseline.environment_events, "3D initialization consumes no simulation randomness")
 	check(view.world is Node3D and view.camera is Camera3D and view.world_viewport.own_world_3d, "genuine isolated 3D world and camera")
 	check(view.camera.projection == Camera3D.PROJECTION_PERSPECTIVE, "camera uses perspective projection")
 	check(is_equal_approx(rig.pitch,45) and is_equal_approx(rig.yaw,45) and view.camera.global_position.y > 50, "elevated 45-degree diagonal overview")
 	check(view.city.buildings.size() == Manager.CityMap.building_rects().size(), "all original building footprints represented")
-	check(view.agent_nodes.size() == 20, "twenty reusable 3D avatars")
+	check(view.agent_nodes.size() == int(app.manager.settings["agent_count"]), "all reusable 3D avatars")
 	check(app.director_mode and app.false_alarm_button.visible and app.export_button.visible, "Director-only controls preserved")
 	check(not app.get_property_list().any(func(p: Dictionary): return p["name"] == "mode_picker"), "no Observer mode selector")
 	check(CameraRig.validate(rig.settings).is_empty(), "camera config validates")
@@ -111,7 +116,7 @@ func _run() -> void:
 					for building in Manager.CityMap.building_rects():
 						clear = clear and not building.grow(5.2).has_point(point)
 			check(clear, "3D nav query avoids building volumes with bean clearance")
-	check(colors.size() == 20, "distinct deterministic avatar colors")
+	check(colors.size() == int(app.manager.settings["agent_count"]), "distinct deterministic avatar colors")
 	# The preserved fixed-clock routes also fit the same walkable 3D corridors.
 	for profile in app.manager.agents:
 		for belief in profile["beliefs"].values():
@@ -224,13 +229,13 @@ func _run() -> void:
 			check(not node.visible and node.selection_area.collision_layer == 0, "admitted avatars disappear without phantom outdoor selection")
 		else:
 			check(node.visible and node.record["state"] == "EXPOSED", "outside agents stay represented as exposed")
-	check(app.agent_picker.item_count == 21, "Director can inspect every agent including sheltered agents")
+	check(app.agent_picker.item_count == int(app.manager.settings["agent_count"]) + 1, "Director can inspect every agent including sheltered agents")
 	app.agent_picker.item_selected.emit(1)
 	check(app.details.text.contains(app.manager.agents[0]["id"]) and app.selected_kind == "agent", "agent picker retains indoor cognitive inspection")
 	check(nav.navigation_mesh.get_polygon_count() > 0 and nav.path_between(Vector3(54,0.18,36),Vector3(90,0.18,72)).size() >= 2, "impact leaves navigation intact")
 	app.reset_button.pressed.emit()
 	await settle_physics()
-	check(not is_instance_valid(view.impact_3d) and view.agent_nodes.size() == 20 and view.agent_nodes.all(func(a: Node3D): return a.visible), "reset clears effects and restores twenty visible beans")
+	check(not is_instance_valid(view.impact_3d) and view.agent_nodes.size() == int(app.manager.settings["agent_count"]) and view.agent_nodes.all(func(a: Node3D): return a.visible), "reset clears effects and restores all visible agents")
 	app.false_alarm_button.pressed.emit()
 	app.manager.advance_clock(1000)
 	check(app.manager.phase == "ALL_CLEAR" and not is_instance_valid(view.impact_3d), "false alarms preserve all-clear without 3D impact")

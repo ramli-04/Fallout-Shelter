@@ -183,7 +183,7 @@ func _run() -> void:
 	check(manager.phase == "IMPACT" and not manager.running and manager.remaining_seconds == 0, "countdown clamps exactly to impact")
 	check(manager.agents[4]["state"] == "EXPOSED", "outside agent becomes EXPOSED")
 	check(manager.agents[0]["state"] == "SHELTERED" and manager.agents[0]["position"] == protected_position, "sheltered agent stays still and sheltered")
-	check(manager.summary["sheltered"] + manager.summary["exposed"] == 20, "all population accounted for at impact")
+	check(manager.summary["sheltered"] + manager.summary["exposed"] == int(manager.settings["agent_count"]), "all population accounted for at impact")
 	var occupants := 0
 	for record in manager.shelters:
 		check(record["occupancy"] <= record["capacity"], "capacity never exceeded")
@@ -230,7 +230,7 @@ func _run() -> void:
 	check(is_instance_valid(app.map_view.impact_effect), "impact visual created")
 	app.reset_button.pressed.emit()
 	await process_frame
-	check(not app.summary_panel.visible and not is_instance_valid(app.map_view.impact_effect) and app.map_view.agent_nodes.size() == 20, "Reset clears impact and preserves unique agent nodes")
+	check(not app.summary_panel.visible and not is_instance_valid(app.map_view.impact_effect) and app.map_view.agent_nodes.size() == int(app.manager.settings["agent_count"]), "Reset clears impact and preserves unique agent nodes")
 	check(not app.effects.player.playing, "Reset stops warning playback")
 	var old_seed: int = app.manager.seed_value
 	app.random_button.pressed.emit()

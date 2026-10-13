@@ -7,6 +7,10 @@ static func agent_text(agent: Dictionary, _remaining: float = 0) -> String:
 	var text := "[b]%s / %s[/b]\n%s%s\nState: %s\nGoal: %s\nPreferred shelter: %s\nCompanion: %s\nSpeed: %.2f units/s\n" % [agent["id"], agent["role"], agent["primary_personality"], " + " + agent["secondary_personality"] if not agent["secondary_personality"].is_empty() else "", agent["state"], agent["current_goal"], agent["objective"], agent["companion_id"], agent["movement_speed"]]
 	for trait_name in Personality.TRAITS:
 		text += "%s: %.0f / 100\n" % [trait_name.capitalize(), agent[trait_name]]
+	text += "Provider: %s (configured %s)\n" % [agent.get("decision_provider", "RULE_BASED"), agent.get("configured_provider", "RULE_BASED")]
+	text += "Latest LLM: %s / confidence %s\n%s\nFallback: %s\n" % [agent.get("latest_llm_action", "Pending"), agent.get("latest_llm_confidence", "Pending"), agent.get("latest_llm_explanation", ""), agent.get("fallback_reason", "None")]
+	text += "AI queue: %s\n" % agent.get("ai_queue_status", "IDLE")
+	text += "LLM metrics: %s\n" % str(agent.get("llm_metrics", {}))
 	text += "Health: %.0f / 100\nStrike status: %s\n" % [agent["health"], agent["survival_status"]]
 	text += "\n[b]Private beliefs[/b]\n"
 	for id in agent["beliefs"]:
@@ -36,4 +40,4 @@ static func shelter_text(record: Dictionary) -> String:
 		for entry in record["event_history"].slice(-6):
 			var seconds := int(entry["time"])
 			history += "%02d:%02d / %s %s\n" % [seconds/60,seconds%60,entry["event_id"],entry["action"]]
-	return "[b]%s / %s / DIRECTOR[/b]\nExists: %s\nStatus: %s\nCapacity: %d\nOccupancy: %d\nDoor: %s\nMaintenance: %.0f / 100\nSupply: %.0f person-days\nResources: %s\nDistance: %s\n%s\n\nRecent incidents:\n%s\nStocks are not consumed until Phase 3." % [record["id"], record["name"], record["exists"], record["operational_status"], record["capacity"], record["occupancy"], record["door_status"], record["maintenance_condition"], record["supply_level"], record["resources"], record["distance"], record["special"], history]
+	return "[b]%s / %s / DIRECTOR[/b]\nExists: %s\nStatus: %s\nCapacity: %d\nOccupancy: %d\nDoor: %s\nMaintenance: %.0f / 100\nSupply: %.0f person-days\nResources: %s\nDistance: %s\n%s\n\nRecent incidents:\n%s\nDaily rationing is not modeled." % [record["id"], record["name"], record["exists"], record["operational_status"], record["capacity"], record["occupancy"], record["door_status"], record["maintenance_condition"], record["supply_level"], record["resources"], record["distance"], record["special"], history]

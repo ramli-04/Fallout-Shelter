@@ -42,6 +42,9 @@ static func act(manager: Node, agent: Dictionary, duration: float) -> bool:
 		Beliefs.remember(agent, time, "Paused under extreme stress; will reconsider after recovering", manager.living)
 		manager.log_event("REACTION", "%s froze temporarily under extreme stress." % agent["id"])
 		return false
+	# Physical stress/delay remains shared; LLM agents choose social/home actions themselves.
+	if agent.get("decision_provider", "RULE_BASED") == "LOCAL_LLM":
+		return agent["state"] == "MOVING"
 	if agent["primary_personality"] == "DENIAL" and agent["alarm_confidence"] < 0.4 and not agent.get("home_delay_used", false):
 		agent["home_delay_used"] = true
 		agent["wait_until"] = time + agent["reaction_delay"]

@@ -14,7 +14,7 @@ class ModelTests(unittest.TestCase):
     def test_five_shelter_capacities_and_resources(self):
         specs = {s.id: s for s in self.config.shelters}
         self.assertEqual([specs[f"S{i}"].capacity for i in range(1, 6)],
-                         [2500, 750, 1800, 3500, 5000])
+                         [125, 37, 90, 175, 250])
         self.assertEqual(specs["S1"].supplies_person_days, 2000)
         self.assertIsNone(specs["S3"].reported_supplies_person_days)
         self.assertEqual(specs["S5"].existence_probability, 0.5)

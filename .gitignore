@@ -5,3 +5,6 @@ __pycache__/
 outputs/
 *.egg-info/
 .godot/
+.env
+
+outputs/ai_runs/

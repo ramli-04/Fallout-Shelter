@@ -27,6 +27,7 @@ static func receive(agent: Dictionary, message: Dictionary, speaker: Dictionary,
 			memory_modifier = (float(prior["perceived_credibility"])-0.5)*0.1
 	var credibility := clampf(float(message["perceived_credibility"]) * 0.45 + float(agent["trust_level"])/150.0 - float(agent["skepticism"])/200.0 + authority_bonus + memory_modifier - own["hops"]*0.04, 0, 1)
 	var reaction := "believe" if credibility >= 0.60 else "reject" if credibility <= 0.25 else "investigate" if agent["skepticism"] >= 60 else "doubt"
+	agent.get("trust_relationships", {})[speaker["id"]] = credibility
 	if own.get("kind", "rumor") == "observation":
 		var shelter_id: String = own["shelter_id"]
 		var belief: Dictionary = agent["beliefs"][shelter_id]
@@ -37,9 +38,12 @@ static func receive(agent: Dictionary, message: Dictionary, speaker: Dictionary,
 				belief[key] = evidence[key]
 			belief["confidence"] = credibility
 			belief["source"] = "Report via %s; observed by %s" % [speaker["id"], message["original_source"]]
+			belief["original_source"] = message["original_source"]
+			belief["evidence_type"] = "reported_observation"
+			belief["last_update_time"] = time
 			reaction = "believe report"
-	elif reaction == "believe":
-		_apply_claim(agent, own["claim"], time)
+	elif reaction == "believe" and own["claim"] in CLAIMS:
+		_apply_claim(agent, own["claim"], time, own["original_source"])
 	elif reaction == "investigate":
 		agent["current_goal"] = "Investigate: " + own["claim"]
 		if own["claim"] == CLAIMS[0]:
@@ -58,7 +62,7 @@ static func receive(agent: Dictionary, message: Dictionary, speaker: Dictionary,
 	Beliefs.remember(agent, time, "%s from %s: %s (credibility %.0f%%)" % [reaction, speaker["id"], own["claim"], credibility*100], config)
 	return reaction
 
-static func _apply_claim(agent: Dictionary, claim: String, time: float) -> void:
+static func _apply_claim(agent: Dictionary, claim: String, time: float, original_source: String = "Unknown") -> void:
 	var id := "S5" if claim == CLAIMS[0] else "S2" if claim == CLAIMS[1] else "S1" if claim == CLAIMS[2] else "S4"
 	if claim == CLAIMS[4]:
 		agent["alarm_confidence"] = maxf(0.15, agent["alarm_confidence"]-0.3)
@@ -75,6 +79,9 @@ static func _apply_claim(agent: Dictionary, claim: String, time: float) -> void:
 	elif claim == CLAIMS[3]:
 		belief["resource_score"] = 1.0
 	belief["source"] = "Unverified rumor at %.1fs" % time
+	belief["original_source"] = original_source
+	belief["evidence_type"] = "rumor"
+	belief["last_update_time"] = time
 
 static func observation_message(agent: Dictionary, shelter_id: String, time: float) -> Dictionary:
 	return {"rumor_id": "OBS:%s:%s:%.1f" % [agent["id"], shelter_id, time], "claim": "%s entrance observed" % shelter_id,

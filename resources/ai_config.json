@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "llm_agent_count": 150,
+  "service_url": "http://127.0.0.1:8765",
+  "request_timeout_seconds": 30,
+  "decision_interval_seconds": 12,
+  "health_interval_seconds": 5,
+  "max_response_age_seconds": 45
+}

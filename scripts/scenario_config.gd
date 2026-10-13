@@ -10,7 +10,7 @@ static func validate_settings(data: Dictionary) -> String:
 	for key in ["seed", "agent_count", "authority_count"]:
 		if not _is_number(data[key]) or float(data[key]) != floor(float(data[key])):
 			return "%s must be an integer." % key
-	if int(data["agent_count"]) < 1 or int(data["agent_count"]) > 24:
+	if int(data["agent_count"]) < 1 or int(data["agent_count"]) > 400:
 		return "agent_count must be 1–24 (available Phase 1 sidewalk positions)."
 	if int(data["authority_count"]) < 0 or int(data["authority_count"]) > int(data["agent_count"]):
 		return "authority_count must be between zero and agent_count."

@@ -43,6 +43,13 @@ var environment_events: Array[Dictionary] = []
 var alarm_started_seconds := 0.0
 var alarm_is_real := true
 var next_contact_seconds := 0.0
+var ai_config: Dictionary = {}
+var ai_bridge: Node
+
+func _ready() -> void:
+	ai_bridge = preload("res://scripts/llm_bridge.gd").new()
+	add_child(ai_bridge)
+	ai_bridge.configure(self)
 
 
 func load_settings(path: String = CONFIG_PATH) -> bool:
@@ -53,6 +60,20 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 	if parser.parse(file.get_as_text()) != OK or not parser.data is Dictionary:
 		return _fail("Invalid JSON in %s, line %d: %s" % [path, parser.get_error_line(), parser.get_error_message()])
 	settings = parser.data
+	var ai_data: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://resources/ai_config.json"))
+	if not ai_data is Dictionary:
+		return _fail("Invalid resources/ai_config.json")
+	ai_config = ai_data
+	if not ai_config.get("enabled") is bool or not ai_config.get("llm_agent_count") is float and not ai_config.get("llm_agent_count") is int:
+		return _fail("AI enabled must be boolean and llm_agent_count an integer.")
+	if ai_config["llm_agent_count"] < 0 or ai_config["llm_agent_count"] != floorf(ai_config["llm_agent_count"]) or ai_config["llm_agent_count"] > settings.get("agent_count", 0):
+		return _fail("llm_agent_count must be between zero and agent_count.")
+	if not ai_config.get("service_url") is String or not ai_config["service_url"].begins_with("http://127.0.0.1:"):
+		return _fail("AI service_url must use local http://127.0.0.1:<port>.")
+	for key in ["request_timeout_seconds", "decision_interval_seconds", "health_interval_seconds", "max_response_age_seconds"]:
+		var value: Variant = ai_config.get(key)
+		if not (value is float or value is int) or not is_finite(float(value)) or value <= 0:
+			return _fail("AI " + key + " must be positive.")
 	var living_file := FileAccess.open("res://resources/living_world.json", FileAccess.READ)
 	if living_file == null:
 		return _fail("Missing resources/living_world.json")
@@ -130,6 +151,8 @@ static func validate_living(data: Dictionary) -> String:
 func initialize_run() -> void:
 	if settings.is_empty():
 		return
+	if ai_bridge != null:
+		ai_bridge.reset_run()
 	running = false
 	elapsed_seconds = 0.0
 	simulation_speed = float(settings["simulation_speed"])
@@ -217,6 +240,11 @@ func initialize_run() -> void:
 			"admission_priority": belief_rng.randi(),
 		}
 		Personality.assign(agent, index, order, profile_rng, living)
+		agent["configured_provider"] = "LOCAL_LLM" if ai_config.get("enabled", false) and (index == int(settings["authority_count"]) if int(ai_config.get("llm_agent_count", 0)) == 1 else index < int(ai_config.get("llm_agent_count", 0))) else "RULE_BASED"
+		agent["decision_provider"] = agent["configured_provider"]
+		agent["trust_relationships"] = {}
+		agent["llm_request_sequence"] = 0
+		agent["next_llm_seconds"] = 0.0
 		agent["current_beliefs"] = agent["beliefs"]
 		agent["companion_id"] = "A%03d" % (((index + 1) % int(settings["agent_count"])) + 1)
 		agents.append(agent)
@@ -369,6 +397,18 @@ func _set_state(agent: Dictionary, state: String) -> void:
 
 
 func choose_destination(agent: Dictionary) -> void:
+	if agent.get("configured_provider", "RULE_BASED") == "LOCAL_LLM" and ai_bridge != null and phase == "EVACUATION" and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE"]:
+		if ai_bridge.request_decision(agent):
+			return
+		agent["decision_provider"] = "FALLBACK_RULE_BASED"
+		agent["fallback_reason"] = "AI service " + ai_bridge.status
+		if elapsed_seconds >= agent.get("next_fallback_log", 0.0):
+			agent["next_fallback_log"] = elapsed_seconds + ai_config["decision_interval_seconds"]
+			ai_bridge.record_result({"agent_id": agent["id"], "success": false, "inference_requested": false, "fallback_reason": agent["fallback_reason"], "simulation_time": elapsed_seconds})
+	choose_rule_destination(agent)
+
+
+func choose_rule_destination(agent: Dictionary) -> void:
 	if phase != "EVACUATION" or agent["state"] in ["SHELTERED", "EXPOSED"]:
 		return
 	var previous: String = agent["objective"]
@@ -402,7 +442,10 @@ func choose_destination(agent: Dictionary) -> void:
 		agent["current_goal"] = "Follow nearby crowd toward " + destination
 	Beliefs.remember(agent, elapsed_seconds, result["explanation"], living)
 	agent["decision_history"].append({"time": elapsed_seconds, "shelter_id": destination,
+		"provider": agent.get("decision_provider", "RULE_BASED"),
 		"explanation": result["explanation"], "scores": result["scores"].duplicate(true)})
+	while agent["decision_history"].size() > 100:
+		agent["decision_history"].pop_front()
 	if destination.is_empty():
 		agent["route"] = PackedVector2Array()
 		agent["route_index"] = 0
@@ -479,7 +522,7 @@ func _trigger_impact() -> void:
 			agent["current_goal"] = "Exposed at impact; evacuation stopped"
 		agent["survival_status"] = "PROTECTED_AT_IMPACT" if agent["state"] == "SHELTERED" else "EXPOSED_AT_IMPACT"
 	summary = get_totals()
-	log_event("IMPACT", "Nuclear impact occurred. %d sheltered / %d exposed. Final survival belongs to Phase 3." % [summary["sheltered"], summary["exposed"]])
+	log_event("IMPACT", "Nuclear impact occurred. %d sheltered / %d exposed. Final survival is not modeled." % [summary["sheltered"], summary["exposed"]])
 	impact_occurred.emit(summary.duplicate())
 
 

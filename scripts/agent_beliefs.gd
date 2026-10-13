@@ -17,7 +17,10 @@ static func initialize(definitions: Array, rng: RandomNumberGenerator, config: D
 			"risk": definition["known_risk"], "popularity": definition["popularity"],
 			"official_support": definition["official_support"], "existence_probability": definition["public_existence_probability"],
 			"confidence": definition["information_confidence"], "unavailable": false,
-			"observed_at": -1.0, "source": "Rumored location" if definition["id"] == "S5" else "Public map; approximate size"}
+			"observed_at": -1.0, "last_update_time": 0.0,
+			"evidence_type": "rumor" if definition["id"] == "S5" else "public_map",
+			"original_source": "Public map",
+			"source": "Rumored location" if definition["id"] == "S5" else "Public map; approximate size"}
 	return result
 
 static func observe(agent: Dictionary, shelter: Dictionary, time: float, config: Dictionary) -> bool:
@@ -35,6 +38,9 @@ static func observe(agent: Dictionary, shelter: Dictionary, time: float, config:
 	belief["unavailable"] = not shelter["operational"] or shelter["door_status"] != "OPEN" or shelter["occupancy"] >= shelter["capacity"]
 	belief["confidence"] = 1.0
 	belief["observed_at"] = time
+	belief["last_update_time"] = time
+	belief["evidence_type"] = "direct_observation"
+	belief["original_source"] = agent["id"]
 	belief["source"] = "Direct observation at %.1fs" % time
 	belief["risk"] = maxf(belief["risk"], 0.65) if shelter["infested"] else float(shelter["known_risk"])
 	var text := "%s: %s; entrance %s; occupancy %d/%d%s" % [shelter["id"], "present" if shelter["exists"] else "ABSENT", shelter["door_status"], shelter["occupancy"], shelter["capacity"], "; rats observed" if shelter["infested"] else ""]

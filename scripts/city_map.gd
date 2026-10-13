@@ -13,6 +13,14 @@ static func spawn_slots() -> Array[Vector2]:
 		for y in [360, 540, 720]:
 			for side in [-1, 1]:
 				slots.append(Vector2(x + side * 28, y + 28))
+	# Additional clear sidewalk positions along the existing vertical streets.
+	for x in range(180, 1621, ROAD_SPACING):
+		for y in range(0, 901, ROAD_SPACING):
+			for side in [-1, 1]:
+				for offset in [28, 60, 100, 140]:
+					var point := Vector2(x + side * 28, y + offset)
+					if not slots.has(point):
+						slots.append(point)
 	return slots
 
 

@@ -45,16 +45,16 @@ func _run() -> void:
 	await process_frame
 	var manager: Node = app.manager
 	manager.set_process(false)
-	check(manager.agents.size() == 20, "20 agents initialized")
+	check(manager.agents.size() == 150, "150 agents initialized")
 	check(manager.shelters.size() == 5, "all five shelter records initialized")
-	check(app.map_view.agent_nodes.size() == 20, "20 reusable agent scenes instantiated")
+	check(app.map_view.agent_nodes.size() == 150, "150 reusable agent scenes instantiated")
 	var existing := 0
 	var capacities: Array[int] = []
 	for shelter in manager.shelters:
 		capacities.append(int(shelter["capacity"]))
 		if shelter["exists"]:
 			existing += 1
-	check(capacities == [2500, 750, 1800, 3500, 5000], "specified capacities")
+	check(capacities == [125, 37, 90, 175, 250], "specified capacities")
 	check(app.map_view.shelter_nodes.size() == existing, "only existing shelters drawn")
 	check(app.shelter_list.get_child_count() == 5, "absent shelter still has a sidebar record")
 	check(manager.shelters[2]["resources"] == "Unknown", "S3 supplies described as unknown")
@@ -81,7 +81,7 @@ func _run() -> void:
 	var original_agents: Array = manager.agents.duplicate(true)
 	var original_shelters: Array = manager.shelters.duplicate(true)
 	var initial_events: Array = manager.events.duplicate(true)
-	check(initial_events.size() == 28, "system, five shelter and 20 agent events recorded")
+	check(initial_events.size() == 158, "system, five shelter and 150 agent events recorded")
 	check(app.start_button.disabled == false and app.pause_button.disabled, "initial control state")
 	# Dispatch real GUI events through the viewport, exercising connected signals.
 	click(app.start_button, app.start_button.size / 2)
@@ -122,7 +122,7 @@ func _run() -> void:
 	click(view, target)
 	await process_frame
 	check(is_instance_valid(view.selected_node) and view.selected_node.record["id"] == "S1", "map shelter click selects shelter")
-	check(app.details.text.contains("Capacity: 2500"), "director inspector shows actual capacity")
+	check(app.details.text.contains("Capacity: 125"), "director inspector shows actual capacity")
 	var s3_card: Control = app.shelter_list.get_child(2)
 	app.sidebar_scroll.ensure_control_visible(s3_card)
 	await process_frame
@@ -170,7 +170,7 @@ func _run() -> void:
 	check(manager.shelters == original_shelters, "Reset reproduces S5 and shelter data")
 	check(manager.events == initial_events, "Reset reproduces initialization event journal")
 	check(not is_instance_valid(view.selected_node), "Reset clears selection")
-	check(view.agent_nodes.size() == 20, "Reset does not duplicate rendered agents")
+	check(view.agent_nodes.size() == 150, "Reset does not duplicate rendered agents")
 	check(app.shelter_list.get_child_count() == 5, "Reset does not duplicate sidebar entries")
 	# Cover both possible S5 outcomes and independence from profile count.
 	var seen: Array[bool] = []
@@ -183,7 +183,7 @@ func _run() -> void:
 		manager.settings["agent_count"] = 5
 		manager.initialize_run()
 		check(manager.shelters[4]["exists"] == exists, "S5 independent of agent count")
-		manager.settings["agent_count"] = 20
+		manager.settings["agent_count"] = 150
 	check(seen.size() == 2, "seeded runs cover present and absent S5")
 	check(Manager.validate_settings(manager.settings).is_empty(), "default configuration validates")
 	for bad_value in [0, -1, "fast"]:

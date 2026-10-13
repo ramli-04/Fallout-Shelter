@@ -1,14 +1,17 @@
 # ESSAIM — La Dernière Chance
 
 Academic multi-agent simulation for **Mondes Vivants — 5A IA & Big Data**.
-The existing Godot project now implements **Phase 2.6: a complete primitive 3D
-city and Sims-style Director camera**, preserving the Phase 2.5 simulation
-entirely in GDScript.
+The existing Godot project now adds **Phase 3: local Ollama decisions** to the
+Phase 2.6 3D city and Director camera. Godot remains authoritative for world
+truth and physical actions; a Python HTTP service handles inference and private memory.
 
 ## Run
 
 Open the existing `project.godot` in Godot 4 and press **F5**. No manual nodes,
-signal connections, plugins, services or API keys are required.
+signal connections, plugins or API keys are required for rule fallback.
+For real LLM decisions, follow [the Phase 3 setup guide](docs/PHASE_3_GUIDE.md).
+Defaults are five local LLM agents and fifteen rule agents; unavailable inference
+uses the existing rule policy. No model is downloaded automatically.
 Tested with the installed **Godot 4.7.2 stable**.
 
 ```powershell
@@ -49,7 +52,7 @@ archetypes influence decisions through individual traits and stress.
 Autonomous maintenance, door, road, crowd and rat incidents have seeded schedules
 and real temporary consequences. A real impact stops evacuation and shows
 **SHELTERED / EXPOSED**, without assigning final deaths. A false alarm announces
-**ALL CLEAR** and produces no impact. **Phase 3 has not started.**
+**ALL CLEAR** and produces no impact. **Local LLM integration is implemented; model installation is manual.**
 
 ## Configuration and documentation
 
@@ -94,6 +97,12 @@ Movement retains the deterministic road planner and maps its positions onto XZ.
 The connected NavigationMesh and each NavigationAgent3D maintain valid 3D paths
 without replacing the model's clock or route. There is no crowd pushing/RVO,
 detailed traffic model or walkable shelter interior.
-Ten-day survival and rationing, LLMs, Kafka and Storyteller controls remain future
-work. Earlier `Main.py`, Python models/simulation/configuration and Python tests
+Ten-day survival and rationing, Kafka and Storyteller controls remain future
+work. LLM setup, provider contracts, status, metrics and limitations are documented
+in [PHASE_3_GUIDE.md](docs/PHASE_3_GUIDE.md). Earlier `Main.py`, Python models/simulation/configuration and Python tests
 are preserved but do not control the Godot game.
+# Current setup: 150 AI agents
+
+The interface uses a full-window map with a warm-white, sage and charcoal palette. Press the play triangle to begin; the two bars pause. People, house and journal icons on the right toggle Agents, Shelters and Logs; selecting an entity opens its information automatically. All action buttons have descriptive hover tooltips. Bottom controls sit on a 50%-transparent toolbar with opaque icons. The gear opens Settings, containing seed input, apply-seed and random-scenario controls. The fullscreen icon or F11 toggles display mode. Escape closes the active panel.
+
+The scenario now has 150 agents, all configured for local llama3.2:1b, and shelter capacities reduced to one twentieth. See [population and scheduling notes](docs/POPULATION_AI.md) and [startup instructions](ai_service/README.md). Older Phase 3 reports describe the earlier one-agent milestone.
