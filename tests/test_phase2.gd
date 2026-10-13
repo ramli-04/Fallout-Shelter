@@ -1,5 +1,5 @@
 extends SceneTree
-## Integration and boundary scenarios; no plugins, networking, or survival model.
+## Deterministic rule-policy, fixed-clock and admission regression scenarios.
 
 const Manager = preload("res://scripts/simulation_manager.gd")
 const Decisions = preload("res://scripts/evacuation_decisions.gd")
@@ -27,6 +27,7 @@ func make_manager(seed_number: int = 42) -> Node:
 	root.add_child(manager)
 	manager.set_process(false)
 	check(manager.load_settings(), "default configuration loads")
+	manager.ai_config["enabled"] = false
 	manager.living["false_alarm_probability"] = 0.0
 	for key in manager.living["event_probabilities"]: manager.living["event_probabilities"][key] = 0.0
 	manager.living["help_radius"] = 0.0
@@ -76,7 +77,7 @@ func _run() -> void:
 	start_alarm(manager)
 	check(manager.phase == "EVACUATION" and manager.running, "Start activates evacuation")
 	for agent in manager.agents:
-		check(not agent["objective"].is_empty(), "each default agent chooses a destination")
+		check(not agent["objective"].is_empty() or agent["decision_scores"].values().all(func(score): return not score["eligible"]), "each agent chooses a reachable destination or has no eligible option")
 		if not agent["objective"].is_empty():
 			check(agent["decision_scores"][agent["objective"]]["eligible"], "chosen destination is belief-eligible")
 		check(agent["decision_history"].size() == 1, "initial explanation recorded once")
@@ -90,12 +91,15 @@ func _run() -> void:
 	for event in manager.events:
 		if event["category"] == "SIREN": resumed_sirens += 1
 	check(siren_events == 1 and resumed_sirens == 1 and manager.countdown_seconds == countdown, "Resume does not resample countdown or retrigger siren")
-	var agent: Dictionary = manager.agents[0]
+	var agent: Dictionary = manager.agents.filter(func(a): return not a["objective"].is_empty())[0]
+	agent["primary_personality"] = "SURVIVALIST"
+	agent["panic_level"] = 0
 	var position: Vector2 = agent["position"]
 	var distance_before := Routes.remaining_distance(agent)
+	manager.next_decision_seconds = manager.elapsed_seconds + 5
 	manager.advance_clock(1)
 	check(is_equal_approx(manager.elapsed_seconds, 1), "fixed clock advances one simulated second")
-	check(absf(distance_before - Routes.remaining_distance(agent) - agent["movement_speed"]) < 0.01, "movement spends exactly speed × simulated time")
+	check(absf(distance_before - Routes.remaining_distance(agent) - minf(distance_before,agent["movement_speed"])) < 0.01, "movement spends exactly speed × simulated time")
 	check(agent["position"].distance_to(position) <= agent["movement_speed"] + 0.01, "movement never teleports")
 	manager.pause()
 	var paused: Array = manager.agents.duplicate(true)

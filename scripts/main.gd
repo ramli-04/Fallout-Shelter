@@ -30,6 +30,8 @@ var totals_label: Label
 var top_speed_label: Label
 var summary_panel: PanelContainer
 var summary_label: Label
+var siren_panel: PanelContainer
+var siren_controls: Node
 var effects: Node
 var selected_kind := "none"
 var selected_id := ""
@@ -67,6 +69,7 @@ func _ready() -> void:
 	_build_dashboard()
 	effects = Effects.new()
 	add_child(effects)
+	effects.configure(map_view)
 	manager.run_initialized.connect(_on_run_initialized)
 	manager.clock_changed.connect(_on_clock_changed)
 	manager.event_logged.connect(_on_event_logged)
@@ -96,6 +99,7 @@ func _ready() -> void:
 func _build_dashboard() -> void:
 	theme = Dashboard.light_theme()
 	map_view = MapView.new()
+	map_view.manager = manager
 	map_view.name = "CityViewport"
 	map_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(map_view)
@@ -119,7 +123,7 @@ func _build_dashboard() -> void:
 	rail.offset_left = -64
 	rail.offset_right = -16
 	rail.offset_top = 112
-	for entry in [["agents", "Agents"], ["shelters", "Shelters"], ["logs", "Logs"]]:
+	for entry in [["agents", "Agents"], ["shelters", "Shelters"], ["logs", "Logs"], ["sirens", "Sirens"]]:
 		var button := Dashboard.icon_button(entry[0], entry[1])
 		button.toggle_mode = true
 		button.tooltip_text = "Open or collapse " + entry[1].to_lower() + " panel"
@@ -192,7 +196,7 @@ func _build_top_bar(layout: VBoxContainer) -> void:
 	row.add_child(Dashboard.label("AGENTS", 11, Dashboard.MUTED))
 	row.add_child(count_label)
 	totals_label = Dashboard.label("0 / 0", 16)
-	row.add_child(Dashboard.label("SAFE / EXPOSED", 11, Dashboard.MUTED))
+	row.add_child(Dashboard.label("SHELTERED / EXPOSED", 11, Dashboard.MUTED))
 	row.add_child(totals_label)
 	top_speed_label = Dashboard.label("1x", 16, Dashboard.ACCENT)
 	row.add_child(top_speed_label)
@@ -313,8 +317,12 @@ func _build_settings(parent: VBoxContainer) -> void:
 	settings_panel = Dashboard.panel()
 	settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	parent.add_child(settings_panel)
-	var column := Dashboard.column(16)
-	settings_panel.add_child(column)
+	var settings_scroll := ScrollContainer.new()
+	settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	settings_panel.add_child(settings_scroll)
+	var column := Dashboard.column(10)
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_scroll.add_child(column)
 	column.add_child(Dashboard.label("SCENARIO SEED", 16, Dashboard.ACCENT))
 	var hint := Dashboard.label("The same seed recreates the same scenario. Applying a seed resets the simulation.", 14, Dashboard.MUTED)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -335,6 +343,20 @@ func _build_settings(parent: VBoxContainer) -> void:
 	actions.add_child(random_button)
 	actions.add_child(Dashboard.label("Random", 14))
 	column.add_child(Dashboard.label("SEED RANGE / 0 - 2147483646", 12, Dashboard.MUTED))
+	var nuclear_controls := preload("res://scripts/nuclear_controls.gd").new()
+	column.add_child(nuclear_controls)
+	nuclear_controls.configure(manager,map_view)
+	siren_controls = preload("res://scripts/siren_controls.gd").new()
+	siren_panel = Dashboard.panel()
+	siren_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(siren_panel)
+	var siren_scroll := ScrollContainer.new()
+	siren_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	siren_panel.add_child(siren_scroll)
+	siren_controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	siren_scroll.add_child(siren_controls)
+	siren_panel.hide()
+	siren_controls.configure(manager,map_view)
 	settings_panel.hide()
 
 
@@ -397,6 +419,10 @@ func _on_event_logged(entry: Dictionary) -> void:
 func _on_object_selected(kind: String, record: Dictionary) -> void:
 	selected_kind = kind
 	selected_id = record.get("id", "")
+	if kind == "siren":
+		_show_drawer("sirens")
+		siren_controls.inspect(selected_id)
+		return
 	agent_picker.select(0)
 	if kind == "agent":
 		for index in range(manager.agents.size()):
@@ -432,7 +458,9 @@ func _refresh_inspector() -> void:
 				details.text = Inspector.agent_text(agent)
 				return
 	elif selected_kind == "shelter":
-		details.text = Inspector.shelter_text(manager.shelter_by_id[selected_id])
+		var record: Dictionary = manager.shelter_by_id[selected_id]
+		var prediction: Dictionary = manager.Blast.shelter_result(record,manager.nuclear)
+		details.text = Inspector.shelter_text(record) + "\n\nBlast distance: %.1f world units\nResistance: %.2f\nStructural state: %s\nPredicted state: %s\nCapacity remaining: %d\nLiving occupants: %d" % [prediction["distance_world"],record["blast_resistance"],record["structural_state"],prediction["structural_state"],maxi(0,record["capacity"]-record["occupancy"]),manager.agents.filter(func(a): return a["shelter_id"] == selected_id and a["health"] > 0).size()]
 		return
 	details.text = "[color=#62736b]Click a 3D agent or shelter to inspect. Start simulation activates the city; Launch nuke sounds the siren.\n\nDirector sees world truth. Agents continue to use their own partial knowledge. Scroll this panel for beliefs and memories.[/color]"
 
@@ -473,7 +501,8 @@ func _on_impact(result: Dictionary) -> void:
 	warning_label.visible = true
 	map_view.show_impact()
 	summary_panel.visible = true
-	summary_label.text = "IMPACT  â€¢  %d sheltered / %d exposed / %d total. Evacuation and admissions stopped. Final survival outcomes are not modeled." % [result["sheltered"], result["exposed"], result["population"]]
+	summary_label.text = "IMPACT / %d sheltered / %d exposed / %d total. Evacuation and admissions stopped. Blast outcomes recorded." % [result["sheltered"], result["exposed"], result["population"]]
+	summary_label.text += " %d dead / %d injured / %d shelters destroyed." % [result["dead"],result["injured"],result["destroyed_shelters"]]
 	_refresh_live_ui()
 
 
@@ -513,12 +542,14 @@ func _export_trace() -> void:
 	if file == null:
 		manager.log_event("ERROR", "Cannot write trace: " + error_string(FileAccess.get_open_error()))
 		return
-	file.store_string(JSON.stringify(_json_value({"seed": manager.seed_value, "settings": manager.settings, "living": manager.living, "alarm_is_real": manager.alarm_is_real, "countdown": manager.countdown_seconds, "events": manager.events, "environment": manager.environment_events, "agents": manager.agents, "shelters": manager.shelters}), "\t"))
+	file.store_string(JSON.stringify(_json_value({"sirens": manager.sirens,"warning_config": manager.warning_config, "nuclear": manager.nuclear, "world_objects": manager.world_objects, "structures": manager.structures, "points_of_interest": manager.points_of_interest, "summary": manager.summary, "seed": manager.seed_value, "settings": manager.settings, "living": manager.living, "alarm_is_real": manager.alarm_is_real, "countdown": manager.countdown_seconds, "events": manager.events, "environment": manager.environment_events, "agents": manager.agents, "shelters": manager.shelters}), "\t"))
 	file.close()
 	manager.log_event("EXPORT", "Trace saved: " + ProjectSettings.globalize_path(path), "director")
 
 
 static func _json_value(value: Variant) -> Variant:
+	if value is Rect2:
+		return {"position": _json_value(value.position), "size": _json_value(value.size)}
 	if value is Vector2:
 		return [value.x, value.y]
 	if value is Dictionary:
@@ -562,10 +593,11 @@ func _show_drawer(kind: String) -> void:
 	inspector_panel.visible = kind in ["agents", "shelters"]
 	logs_panel.visible = kind == "logs"
 	settings_panel.visible = kind == "settings"
+	siren_panel.visible = kind == "sirens"
 	shelter_group.visible = kind == "shelters"
 	agent_picker.visible = kind == "agents"
 	inspector_header.text = "AGENT INFO" if kind == "agents" else "SHELTER INFO"
-	drawer_title.text = "SETTINGS" if kind == "settings" else "EVENT LOGS" if kind == "logs" else inspector_header.text
+	drawer_title.text = "WARNING SIRENS" if kind == "sirens" else "SETTINGS" if kind == "settings" else "EVENT LOGS" if kind == "logs" else inspector_header.text
 	for key in drawer_buttons:
 		drawer_buttons[key].set_pressed_no_signal(key == kind)
 	_refresh_inspector()

@@ -61,6 +61,7 @@ func _run() -> void:
 	var app: Control = MAIN.instantiate()
 	root.add_child(app)
 	app.manager.set_process(false)
+	app.intro_panel.hide()
 	await settle_physics()
 	var view: SubViewportContainer = app.map_view
 	var rig: Node3D = view.camera_rig
@@ -82,7 +83,13 @@ func _run() -> void:
 	baseline.ai_config["enabled"] = false
 	app.manager.ai_config["enabled"] = false
 	app.manager.initialize_run()
+	app.intro_panel.hide()
 	baseline.initialize_run()
+	for frame in range(120):
+		await physics_frame
+		await process_frame
+		var ready_path: PackedVector3Array = view.city.navigation_region.path_between(view.agent_nodes[0].position,view.shelter_nodes[0].position)
+		if ready_path.size() >= 2: break
 	check(app.manager.agents == baseline.agents and app.manager.shelters == baseline.shelters and app.manager.environment_events == baseline.environment_events, "3D initialization consumes no simulation randomness")
 	check(view.world is Node3D and view.camera is Camera3D and view.world_viewport.own_world_3d, "genuine isolated 3D world and camera")
 	check(view.camera.projection == Camera3D.PROJECTION_PERSPECTIVE, "camera uses perspective projection")
@@ -100,6 +107,7 @@ func _run() -> void:
 	var nav: NavigationRegion3D = view.city.navigation_region
 	var map: RID = view.world.get_world_3d().navigation_map
 	check(NavigationServer3D.map_get_iteration_id(map) > 0 and nav.navigation_mesh.get_polygon_count() > 0, "navigation map synchronized and populated")
+	var footprints = Manager.CityMap.building_rects()
 	var colors := {}
 	for index in range(view.agent_nodes.size()):
 		var node: Node3D = view.agent_nodes[index]
@@ -113,7 +121,7 @@ func _run() -> void:
 			for i in range(1,path.size()):
 				for fraction in [0.0,0.25,0.5,0.75,1.0]:
 					var point := Coordinates.to_simulation(path[i-1].lerp(path[i],fraction))
-					for building in Manager.CityMap.building_rects():
+					for building in footprints:
 						clear = clear and not building.grow(5.2).has_point(point)
 			check(clear, "3D nav query avoids building volumes with bean clearance")
 	check(colors.size() == int(app.manager.settings["agent_count"]), "distinct deterministic avatar colors")
@@ -150,7 +158,7 @@ func _run() -> void:
 		key_input(KEY_F)
 		check(rig.target_focus.is_equal_approx(Coordinates.to_world(selected.record["position"])), "F key focuses current agent")
 	key_input(KEY_HOME)
-	check(rig.target_focus == Vector3(90,0.18,54) and rig.target_distance == 145, "Home restores initial overview")
+	check(rig.target_focus == Coordinates.to_world(Manager.CityMap.MAP_SIZE/2) and rig.target_distance == rig.settings["overview_distance"], "Home restores initial overview")
 	var focus_before: Vector3 = rig.target_focus
 	drag(view,MOUSE_BUTTON_MIDDLE,Vector2(24,8))
 	check(rig.target_focus != focus_before and not view.dragging_pan, "middle drag pans and releases cleanly")
@@ -174,7 +182,7 @@ func _run() -> void:
 	rig.rotate_drag(Vector2(0,-10000))
 	check(rig.target_pitch == 30, "lower pitch bounded")
 	rig.pan(Vector2(1,1),100000)
-	check(rig.target_focus.x >= 0 and rig.target_focus.x <= 180 and rig.target_focus.z >= 0 and rig.target_focus.z <= 108, "camera focus stays inside city bounds")
+	check(rig.target_focus.x >= 0 and rig.target_focus.x <= Manager.CityMap.MAP_SIZE.x*Coordinates.SCALE and rig.target_focus.z >= 0 and rig.target_focus.z <= Manager.CityMap.MAP_SIZE.y*Coordinates.SCALE, "camera focus stays inside city bounds")
 	# UI input must not initiate camera movement, zoom or rotation.
 	rig.reset_overview()
 	app.seed_picker.get_line_edit().grab_focus()
@@ -201,7 +209,7 @@ func _run() -> void:
 	baseline.launch_nuke()
 	app.manager.advance_clock(30)
 	baseline.advance_clock(30)
-	await settle_physics()
+	for frame in range(8): await settle_physics()
 	var active_paths := 0
 	for node in view.agent_nodes:
 		if node.record["state"] == "MOVING" and node.navigation_reachable: active_paths += 1
@@ -232,6 +240,7 @@ func _run() -> void:
 	check(app.agent_picker.item_count == int(app.manager.settings["agent_count"]) + 1, "Director can inspect every agent including sheltered agents")
 	app.agent_picker.item_selected.emit(1)
 	check(app.details.text.contains(app.manager.agents[0]["id"]) and app.selected_kind == "agent", "agent picker retains indoor cognitive inspection")
+	nav = view.city.navigation_region
 	check(nav.navigation_mesh.get_polygon_count() > 0 and nav.path_between(Vector3(54,0.18,36),Vector3(90,0.18,72)).size() >= 2, "impact leaves navigation intact")
 	app.reset_button.pressed.emit()
 	await settle_physics()

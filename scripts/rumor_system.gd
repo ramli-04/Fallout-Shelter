@@ -48,6 +48,14 @@ static func receive(agent: Dictionary, message: Dictionary, speaker: Dictionary,
 		agent["current_goal"] = "Investigate: " + own["claim"]
 		if own["claim"] == CLAIMS[0]:
 			agent["recommendations"]["S5"] = 0.25
+	if own.get("kind", "rumor") == "warning" and credibility > 0.25:
+		agent["warning_received_from_peer"] = true
+		agent["alarm_confidence"] = minf(1,agent["alarm_confidence"]+0.05*credibility)
+		if agent["state"] == "IDLE":
+			agent["state"] = "DELAYED"
+			agent["wait_until"] = time+agent["reaction_delay"]
+			agent["current_goal"] = "Consider a warning reported by " + speaker["id"]
+			agent["state_history"].append({"time":time,"state":"DELAYED"})
 	if own.get("kind", "rumor") == "recommendation" and credibility > 0.4:
 		agent["recommendations"][own["shelter_id"]] = credibility
 	own["perceived_credibility"] = credibility

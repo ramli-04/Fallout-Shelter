@@ -2,6 +2,7 @@ extends RefCounted
 ## Admission truth. Resources are person-days; Phase 2.5 does not consume daily rations.
 
 static func initialize(shelter: Dictionary, rng: RandomNumberGenerator, config: Dictionary) -> void:
+	shelter["manual_door_state"] = ""
 	shelter["nominal_capacity"] = shelter["capacity"]
 	if not shelter["exists"]:
 		shelter["capacity"] = 0
@@ -28,6 +29,15 @@ static func initialize(shelter: Dictionary, rng: RandomNumberGenerator, config: 
 	shelter["relay_messages"] = []
 
 static func refresh(shelter: Dictionary, active_events: Array) -> void:
+	if shelter.get("structural_state", "INTACT") == "DESTROYED":
+		shelter["operational"] = false
+		shelter["accepting"] = false
+		shelter["door_status"] = "DESTROYED"
+		return
+	if shelter.get("structural_state", "INTACT") == "DAMAGED":
+		shelter["door_status"] = "JAMMED"
+		shelter["operational_status"] = "DAMAGED"
+		return
 	var failure := false
 	var blocked := false
 	var rats := false
@@ -39,7 +49,14 @@ static func refresh(shelter: Dictionary, active_events: Array) -> void:
 		rats = rats or event["event_type"] == "rats"
 	shelter["operational"] = shelter["base_operational"] and not failure
 	shelter["operational_status"] = "ABSENT" if not shelter["exists"] else "MAINTENANCE FAILURE" if failure else "OPERATIONAL" if shelter["operational"] else "UNAVAILABLE"
-	shelter["door_status"] = "ABSENT" if not shelter["exists"] else "BLOCKED" if blocked else "CLOSED" if not shelter["accepting"] else "OPEN"
+	shelter["door_status"] = "ABSENT" if not shelter["exists"] else "BLOCKED" if blocked else shelter["manual_door_state"] if not shelter.get("manual_door_state", "").is_empty() else "CLOSED" if not shelter["accepting"] else "OPEN"
 	shelter["maintenance_condition"] = 30.0 if failure else 100.0
 	shelter["infested"] = rats
 	shelter["current_occupancy"] = shelter["occupancy"]
+
+static func set_door_state(shelter: Dictionary, state: String) -> bool:
+	if not shelter["exists"] or state not in ["OPEN","CLOSING","CLOSED","OPENING","JAMMED","DESTROYED"]: return false
+	if shelter.get("structural_state", "INTACT") == "DESTROYED" and state != "DESTROYED": return false
+	shelter["manual_door_state"] = state
+	shelter["door_status"] = state
+	return true

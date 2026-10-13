@@ -53,7 +53,11 @@ static func validate(data: Dictionary) -> String:
 
 func reset_overview() -> void:
 	if settings.is_empty(): return
-	target_focus = Vector3(settings["overview_focus"][0], 0.18, settings["overview_focus"][1])
+	var bounds: Vector2 = preload("res://scripts/city_map.gd").MAP_SIZE * 0.1
+	settings["bounds_max"] = [bounds.x, bounds.y]
+	settings["max_distance"] = 800.0
+	settings["overview_distance"] = bounds.x * 1.12
+	target_focus = Vector3(bounds.x/2, 0.18, bounds.y/2)
 	target_yaw = settings["overview_yaw_degrees"]
 	target_pitch = settings["overview_pitch_degrees"]
 	target_distance = settings["overview_distance"]

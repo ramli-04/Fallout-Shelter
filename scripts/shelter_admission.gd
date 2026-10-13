@@ -5,6 +5,8 @@ extends RefCounted
 static func try_admit(agent: Dictionary, shelter: Dictionary, open_phase: bool) -> String:
 	if agent["state"] == "SHELTERED" or not agent["shelter_id"].is_empty():
 		return "Already admitted"
+	if shelter.get("structural_state", "INTACT") == "DESTROYED":
+		return "Shelter destroyed"
 	if not open_phase or not shelter["accepting"]:
 		return "Admissions closed"
 	if not shelter["exists"]:

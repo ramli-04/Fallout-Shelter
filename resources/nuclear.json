@@ -1,0 +1,26 @@
+{
+  "map_scale": 2.5,
+  "impact_position": [
+    2250,
+    1350
+  ],
+  "random_impact": false,
+  "radius": 300.0,
+  "severity": 1.0,
+  "zone_fractions": [
+    0.2,
+    0.55,
+    1.0
+  ],
+  "zone_damage": [
+    2.0,
+    1.0,
+    0.45
+  ],
+  "damaged_capacity_fraction": 0.65,
+  "damaged_supply_fraction": 0.5,
+  "damaged_occupant_damage": 30.0,
+  "destroyed_occupant_damage": 100.0,
+  "outside_damage_multiplier": 100.0,
+  "building_resistance": 0.4
+}

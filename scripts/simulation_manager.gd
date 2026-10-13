@@ -23,6 +23,18 @@ const Rumors = preload("res://scripts/rumor_system.gd")
 const Reactions = preload("res://scripts/agent_reactions.gd")
 const CONFIG_PATH := "res://resources/phase1.json"
 
+const ExperimentLog = preload("res://scripts/experiment_log.gd")
+const Warning = preload("res://scripts/warning_system.gd")
+var warning_config: Dictionary = {}
+var sirens: Array[Dictionary] = []
+var next_warning_observation := 0.0
+var archive_workers: Array[Thread] = []
+var last_archive_path := ""
+const Blast = preload("res://scripts/blast_model.gd")
+var nuclear: Dictionary = {}
+var points_of_interest: Array[Dictionary] = []
+var structures: Array[Dictionary] = []
+var world_objects: Array[Dictionary] = []
 var settings: Dictionary = {}
 var agents: Array[Dictionary] = []
 var shelters: Array[Dictionary] = []
@@ -59,7 +71,16 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 	var parser := JSON.new()
 	if parser.parse(file.get_as_text()) != OK or not parser.data is Dictionary:
 		return _fail("Invalid JSON in %s, line %d: %s" % [path, parser.get_error_line(), parser.get_error_message()])
+	var warning_data: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://resources/warnings.json"))
+	var warning_error := Warning.validate(warning_data)
+	if not warning_error.is_empty(): return _fail(warning_error)
+	warning_config = warning_data
 	settings = parser.data
+	var nuclear_data: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://resources/nuclear.json"))
+	var nuclear_error := Blast.validate(nuclear_data)
+	if not nuclear_error.is_empty(): return _fail(nuclear_error)
+	nuclear = nuclear_data
+	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear["map_scale"])
 	var ai_data: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://resources/ai_config.json"))
 	if not ai_data is Dictionary:
 		return _fail("Invalid resources/ai_config.json")
@@ -151,9 +172,33 @@ static func validate_living(data: Dictionary) -> String:
 func initialize_run() -> void:
 	if settings.is_empty():
 		return
+	for index in range(archive_workers.size()-1,-1,-1):
+		if not archive_workers[index].is_alive():
+			var archive_error: int = archive_workers[index].wait_to_finish()
+			if archive_error != OK: push_error("Experiment archive failed: " + error_string(archive_error))
+			archive_workers.remove_at(index)
 	if ai_bridge != null:
 		ai_bridge.reset_run()
 	running = false
+	phase = "PREPARATION"
+	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear.get("map_scale",2.5))
+	points_of_interest = CityMap.points_of_interest()
+	structures.clear()
+	world_objects.clear()
+	for cell in CityMap.park_cells():
+		world_objects.append({"kind": "street_furniture", "position": Vector2(cell)*180+Vector2(110,120), "destruction_state": "INTACT"})
+		for offset in [Vector2(-30,-30),Vector2(30,0),Vector2(-10,30)]:
+			world_objects.append({"kind": "vegetation", "position": Vector2(cell)*180+Vector2(90,90)+offset, "destruction_state": "INTACT"})
+	for poi in points_of_interest:
+		if poi["kind"] in ["Police Station","Fire Station","Medical Station"]:
+			for side in [-20,20]:
+				world_objects.append({"kind": "service_vehicle", "position": poi["footprint"].get_center()+Vector2(side,58), "destruction_state": "INTACT"})
+	for rect in CityMap.building_rects():
+		structures.append({"position": rect.get_center(), "destruction_state": "INTACT"})
+	if nuclear.get("random_impact",false):
+		randomize_impact()
+	else:
+		set_impact(Vector2(nuclear["impact_position"][0],nuclear["impact_position"][1]))
 	elapsed_seconds = 0.0
 	simulation_speed = float(settings["simulation_speed"])
 	phase = "PREPARATION"
@@ -204,6 +249,9 @@ func initialize_run() -> void:
 		shelter["accepting"] = true
 		shelter["operational"] = bool(definition["operational"]) and shelter["exists"]
 		ShelterState.initialize(shelter, supply_rng, living)
+		shelter["structural_state"] = "INTACT" if shelter["exists"] else "ABSENT"
+		shelter["blast_resistance"] = definition.get("blast_resistance",1.3)
+		shelter["terrain_protection"] = definition.get("terrain_protection",0.25 if shelter["id"] == "S4" else 0.0)
 		shelters.append(shelter)
 		shelter_by_id[shelter["id"]] = shelter
 		log_event("SHELTER", "%s initialized • %s • capacity %d" % [shelter["id"], "present" if shelter["exists"] else "absent", shelter["capacity"]], "director")
@@ -239,6 +287,14 @@ func initialize_run() -> void:
 			"state_history": [{"time": 0.0, "state": "IDLE"}], "next_reconsider_seconds": 0.0,
 			"admission_priority": belief_rng.randi(),
 		}
+		var poi_index := index%3 if agent["role"] == "Authority" else index%5
+		agent["initial_location"] = points_of_interest[poi_index]["id"] if index%3 == 0 or agent["role"] == "Authority" else "Home" if index%3 == 1 else "Public space"
+		agent["specialization"] = ["Police", "Fire", "Medical"][index%3] if agent["role"] == "Authority" else ""
+		if agent["initial_location"].begins_with("POI"):
+			agent["position"] = points_of_interest[poi_index]["position"] + Vector2(28,index*0.8+0.5)
+		for shelter in shelters:
+			if agent["position"].distance_to(shelter["position"]) < 65:
+				agent["position"].y -= 180
 		Personality.assign(agent, index, order, profile_rng, living)
 		agent["configured_provider"] = "LOCAL_LLM" if ai_config.get("enabled", false) and (index == int(settings["authority_count"]) if int(ai_config.get("llm_agent_count", 0)) == 1 else index < int(ai_config.get("llm_agent_count", 0))) else "RULE_BASED"
 		agent["decision_provider"] = agent["configured_provider"]
@@ -249,6 +305,8 @@ func initialize_run() -> void:
 		agent["companion_id"] = "A%03d" % (((index + 1) % int(settings["agent_count"])) + 1)
 		agents.append(agent)
 		log_event("AGENT", "%s spawned • %s • position (%d, %d)" % [agent["id"], agent["role"], agent["position"].x, agent["position"].y])
+	Warning.initialize(self)
+	next_warning_observation = 0.0
 	Rumors.initialize(agents)
 	environment_events = Incidents.schedule(seed_value, shelters, countdown_seconds, living)
 	log_event("DIRECTOR", "Hidden warning duration %ds; alarm %s; %d incidents scheduled." % [countdown_seconds, "real" if alarm_is_real else "false", environment_events.size()], "director")
@@ -282,12 +340,10 @@ func launch_nuke(force_false: bool = false) -> void:
 	remaining_seconds = countdown_seconds
 	log_event("SIREN", "Emergency siren activated. Seek shelter; exact impact time is unknown.")
 	log_event("DIRECTOR", "Alarm %s; hidden delay %ds." % ["real" if alarm_is_real else "false", countdown_seconds], "director")
+	Warning.activate(self,true)
 	siren_activated.emit()
-	for agent in agents:
-		agent["panic_level"] = minf(100, agent["panic_level"] + 8*(1-agent["authority_trust"]/100.0))
-		agent["wait_until"] = elapsed_seconds + agent["reaction_delay"]
-		agent["current_goal"] = "Process warning; prepare to evacuate"
-		_set_state(agent, "DELAYED")
+	Warning.perceive(self)
+	next_warning_observation = elapsed_seconds+0.5
 	next_decision_seconds = elapsed_seconds
 	clock_changed.emit(elapsed_seconds, running)
 	simulation_updated.emit()
@@ -324,6 +380,9 @@ func advance_clock(delta: float) -> void:
 
 func _step(duration: float) -> void:
 	if phase == "EVACUATION":
+		if elapsed_seconds >= next_warning_observation:
+			Warning.perceive(self)
+			next_warning_observation = elapsed_seconds+0.5
 		Incidents.update(self)
 	if elapsed_seconds + 0.000001 >= next_contact_seconds:
 		Reactions.perceive(self)
@@ -509,25 +568,52 @@ func _trigger_impact() -> void:
 	if not alarm_is_real:
 		return
 	phase = "IMPACT"
+	Warning.impact(self)
 	running = false
 	remaining_seconds = 0
 	elapsed_seconds = alarm_started_seconds + countdown_seconds
 	accumulator = 0
+	for object in world_objects:
+		object["destruction_state"] = "DESTROYED" if Blast.intensity(object["position"],nuclear) > 0 else "INTACT"
+	for structure in structures:
+		structure["destruction_state"] = Blast.structure_state(structure["position"],nuclear)
 	for shelter in shelters:
 		shelter["accepting"] = false
-		ShelterState.refresh(shelter, environment_events)
+		ShelterState.refresh(shelter,environment_events)
+		Blast.apply(shelter,nuclear)
+		log_event("BLAST", "%s: %s" % [shelter["id"],shelter["structural_state"]],"director")
+	var dead := 0
+	var injured := 0
+	var evacuation_failures := 0
 	for agent in agents:
-		if agent["state"] != "SHELTERED":
-			_set_state(agent, "EXPOSED")
-			agent["current_goal"] = "Exposed at impact; evacuation stopped"
-		agent["survival_status"] = "PROTECTED_AT_IMPACT" if agent["state"] == "SHELTERED" else "EXPOSED_AT_IMPACT"
+		var protected: bool = agent["state"] == "SHELTERED"
+		var damage: float = Blast.intensity(agent["position"],nuclear)*nuclear["outside_damage_multiplier"]
+		agent["evacuation_failed"] = not protected
+		if not protected:
+			evacuation_failures += 1
+			_set_state(agent,"EXPOSED")
+		else:
+			var state: String = shelter_by_id[agent["shelter_id"]]["structural_state"]
+			damage = nuclear["destroyed_occupant_damage"] if state == "DESTROYED" else nuclear["damaged_occupant_damage"] if state == "DAMAGED" else 0.0
+		agent["health"] = maxf(0,agent["health"]-damage)
+		agent["survival_status"] = "DEAD" if agent["health"] == 0 else "INJURED" if damage > 0 else "PROTECTED_AT_IMPACT" if protected else "SURVIVED_OUTSIDE"
+		if agent["health"] == 0:
+			dead += 1
+		elif damage > 0:
+			injured += 1
+		agent["current_goal"] = "Impact resolved: " + agent["survival_status"]
+		log_event("SURVIVAL", "%s: %s" % [agent["id"],agent["survival_status"]],"director")
 	summary = get_totals()
-	log_event("IMPACT", "Nuclear impact occurred. %d sheltered / %d exposed. Final survival is not modeled." % [summary["sheltered"], summary["exposed"]])
+	summary.merge({"destroyed_sirens": sirens.filter(func(s): return s["state"] == "DESTROYED").size(),"damaged_sirens": sirens.filter(func(s): return s["state"] == "DAMAGED").size(),"surviving_sirens": sirens.filter(func(s): return s["survived"]).size(),"dead": dead,"injured": injured,"survivors": agents.size()-dead,"evacuation_failures": evacuation_failures,"destroyed_shelters": shelters.filter(func(sh): return sh["structural_state"] == "DESTROYED").size()})
+	log_event("IMPACT","Impact resolved: %d deaths, %d injured, %d shelters destroyed." % [dead,injured,summary["destroyed_shelters"]])
+	log_event("EXPERIMENT", "Completed run snapshot queued for archival.", "director")
+	last_archive_path = ExperimentLog.enqueue({"phase": phase,"elapsed_seconds": elapsed_seconds,"alarm_is_real": alarm_is_real,"seed": seed_value,"settings": settings,"nuclear": nuclear,"living": living,"countdown": countdown_seconds,"summary": summary,"agents": agents,"shelters": shelters,"events": events,"structures": structures,"world_objects": world_objects,"sirens": sirens,"warning_config": warning_config,"points_of_interest": points_of_interest,"ai_metrics": ai_bridge.metrics if ai_bridge != null else {}},archive_workers)
 	impact_occurred.emit(summary.duplicate())
 
 
 func _trigger_all_clear() -> void:
 	phase = "ALL_CLEAR"
+	Warning.activate(self,false)
 	running = false
 	remaining_seconds = 0
 	accumulator = 0
@@ -545,3 +631,29 @@ func log_event(category: String, message: String, visibility: String = "public")
 	var entry := {"time": elapsed_seconds, "category": category, "message": message, "visibility": visibility}
 	events.append(entry)
 	event_logged.emit(entry)
+
+func set_impact(point: Vector2) -> bool:
+	if phase != "PREPARATION" or not point.is_finite(): return false
+	nuclear["random_impact"] = false
+	point = point.clamp(Vector2.ZERO,CityMap.MAP_SIZE)
+	nuclear["impact_position"] = [point.x,point.y]
+	return true
+func randomize_impact() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value + 3501
+	nuclear["impact_position"] = [rng.randf_range(0,CityMap.MAP_SIZE.x),rng.randf_range(0,CityMap.MAP_SIZE.y)]
+func preview_damage() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for shelter in shelters:
+		var prediction := Blast.shelter_result(shelter,nuclear)
+		prediction["id"] = shelter["id"]
+		result.append(prediction)
+	return result
+
+func finish_archives() -> void:
+	for worker in archive_workers:
+		var error: int = worker.wait_to_finish()
+		if error != OK: push_error("Experiment archive failed: " + error_string(error))
+	archive_workers.clear()
+func _exit_tree() -> void:
+	finish_archives()

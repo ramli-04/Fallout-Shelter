@@ -1,6 +1,9 @@
 extends RefCounted
 ## Small primitive factory, shared by buildings, shelters and environmental markers.
 
+static var box_meshes: Dictionary = {}
+static var cylinder_meshes: Dictionary = {}
+
 static func material(color: Color, unshaded: bool = false) -> StandardMaterial3D:
 	var result := StandardMaterial3D.new()
 	result.albedo_color = color
@@ -11,11 +14,15 @@ static func material(color: Color, unshaded: bool = false) -> StandardMaterial3D
 
 static func box(parent: Node3D, size: Vector3, position: Vector3, color: Color) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = size
+	if not box_meshes.has(size):
+		var created := BoxMesh.new()
+		created.size = size
+		box_meshes[size] = created
+	var mesh: BoxMesh = box_meshes[size]
 	node.mesh = mesh
 	node.material_override = material(color)
 	node.position = position
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(node)
 	return node
 
@@ -29,6 +36,7 @@ static func cylinder(parent: Node3D, radius: float, height: float, position: Vec
 	node.mesh = mesh
 	node.material_override = material(color)
 	node.position = position
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(node)
 	return node
 

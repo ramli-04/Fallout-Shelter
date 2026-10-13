@@ -1,6 +1,18 @@
-# ESSAIM — La Dernière Chance
+# Citywide warning sirens
 
-Academic multi-agent simulation for **Mondes Vivants — 5A IA & Big Data**.
+The right-rail **siren tower icon** opens network activation, individual tests, audio modes/volume, coverage and damage inspection. Physical rooftop/tower speakers use spatial audio, scheduled local announcements and final-minute urgency, synchronized with the existing simulation clock. Agents receive only perceived warnings. [Warning system guide and test results](docs/WARNING_SIRENS.md) ? [Temporary audio provenance and recording import](assets/audio/warnings/README.md).
+
+# Current phase: 3.5 ? expanded city and nuclear damage
+
+The existing project now has a configurable 2?3? city, five service POIs, reusable animated vault entrances, Director impact selection/preview, actual building and shelter destruction, blast survival metrics and same-seed reset. Start in Preparation, open the Settings gear, and scroll to **NUCLEAR IMPACT CONTROLLER**. Read [the Phase 3.5 guide](docs/PHASE_35_GUIDE.md) for controls, configuration, tests and limits, and [the architecture checkpoint](docs/PHASE_35_ARCHITECTURE.md).
+
+Phase 3.5 supersedes the historical statements below that impact is cosmetic or survival is not modeled. Immediate blast survival is now modeled; ten-day survival remains future work. The preserved 150-agent Ollama setup remains the current AI configuration.
+
+---
+
+# ESSAIM â€” La DerniÃ¨re Chance
+
+Academic multi-agent simulation for **Mondes Vivants â€” 5A IA & Big Data**.
 The existing Godot project now adds **Phase 3: local Ollama decisions** to the
 Phase 2.6 3D city and Director camera. Godot remains authoritative for world
 truth and physical actions; a Python HTTP service handles inference and private memory.
@@ -26,14 +38,14 @@ $GodotExe = 'C:\Users\Moham\Downloads\godot\Godot_v4.7.2-stable_win64_console.ex
 
 - **Start simulation** runs the city and local conversations without a siren.
 - **Launch nuke** activates the siren and evacuation. Its hidden warning lasts
-  300–600 simulated seconds; a configurable 2% of launches are false alarms.
+  300â€“600 simulated seconds; a configurable 2% of launches are false alarms.
 - **Pause / Resume**, **1x / 2x / 5x / 10x** control the shared fixed clock.
 - **Reset same scenario** restores the current seed, profiles, truth and incidents.
 - **New random simulation** generates and displays a new seed. **Use seed**
   initializes exactly the value in the seed field.
 - **Director is the only viewing mode.** Its **False alarm** button forces a
   fake warning for demonstrations. Inspection never gives agents Director knowledge.
-- Click an agent and scroll the sidebar for its 0–100 traits, panic, goal,
+- Click an agent and scroll the sidebar for its 0â€“100 traits, panic, goal,
   shelter beliefs, rumors, memories and decisions. Click a shelter/card to inspect it.
 - **Journal / Environment** tabs show timestamped decisions and incident reports.
 - With the pointer over the city: **WASD/arrows** pan, **wheel** zooms,

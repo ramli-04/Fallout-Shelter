@@ -27,6 +27,7 @@ func make_manager(seed_number: int = 42) -> Node:
 	root.add_child(manager)
 	manager.set_process(false)
 	check(manager.load_settings(), "configs load")
+	manager.ai_config["enabled"] = false
 	manager.new_run(seed_number)
 	return manager
 
@@ -175,6 +176,7 @@ func _run() -> void:
 	receiver["position"] = relay["position"] + Vector2(180, 0)
 	receiver["trust_level"] = 90
 	receiver["skepticism"] = 10
+	manager.agents[2]["position"] = Vector2(6000,6000) # Newcomer has not encountered the relay yet.
 	manager.elapsed_seconds = 2
 	Rumors.exchange(manager)
 	check(receiver["heard_ids"].has(report["rumor_id"]) and receiver["beliefs"]["S1"]["capacity_exact"], "S3 communicates deposited observation beyond ordinary contact radius")

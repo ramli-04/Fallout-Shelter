@@ -155,7 +155,7 @@ func _run() -> void:
 	Input.flush_buffered_events()
 	check(view.camera_rig.position.x > keyboard_before.x, "D key pans camera when map is focused")
 	view.camera_rig.zoom_steps(-1000)
-	check(is_equal_approx(view.camera_rig.target_distance, 260), "maximum zoom clamp")
+	check(is_equal_approx(view.camera_rig.target_distance, view.camera_rig.settings["max_distance"]), "maximum zoom clamp")
 	view.camera_rig.zoom_steps(1000)
 	check(is_equal_approx(view.camera_rig.target_distance, 16), "minimum zoom clamp")
 	var camera_before: Vector3 = view.camera_rig.target_focus

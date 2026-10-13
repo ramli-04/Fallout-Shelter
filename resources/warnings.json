@@ -1,0 +1,30 @@
+{
+  "sound_radius_world": 120.0,
+  "tower_volume_db": -16.0,
+  "tower_pitch": 1.0,
+  "master_volume_db": -10.0,
+  "max_audible_sirens": 4,
+  "network_mode": "CIVIL_DEFENSE_WAIL",
+  "announcements_enabled": true,
+  "announcement_interval_seconds": 75.0,
+  "announcement_duration_seconds": 12.0,
+  "first_announcement_seconds": 12.0,
+  "final_warning_seconds": 60.0,
+  "start_offset_seconds": 3.0,
+  "hearing_threshold": 0.018,
+  "comprehension_threshold": 0.12,
+  "indoor_gain": 0.12,
+  "environmental_muffling": true,
+  "director_mix": true,
+  "survivor_tail_seconds": 4.0,
+  "siren_resistance": 0.65,
+  "announcement_text": "Emergency warning. A nuclear strike is imminent. Seek immediate shelter. Follow emergency personnel. Do not remain outdoors.",
+  "announcement_comprehensible": true,
+  "audio_paths": {
+    "CIVIL_DEFENSE_WAIL": "res://assets/audio/warnings/civil_defense_wail.ogg",
+    "EMERGENCY_BROADCAST": "res://assets/audio/warnings/emergency_broadcast.ogg",
+    "FINAL_WARNING": "res://assets/audio/warnings/final_warning.ogg",
+    "EXPLOSION": "res://assets/audio/warnings/explosion.ogg"
+  },
+  "siren_overrides": {}
+}

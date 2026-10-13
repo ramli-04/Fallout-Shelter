@@ -11,10 +11,10 @@ func _ready() -> void:
 func create_mesh() -> NavigationMesh:
 	var x_cuts: Array[float] = []
 	var z_cuts: Array[float] = []
-	for x in range(11):
+	for x in range(int(preload("res://scripts/city_map.gd").MAP_SIZE.x/180)+1):
 		x_cuts.append(x*18.0-HALF_WIDTH)
 		x_cuts.append(x*18.0+HALF_WIDTH)
-	for z in range(7):
+	for z in range(int(preload("res://scripts/city_map.gd").MAP_SIZE.y/180)+1):
 		z_cuts.append(z*18.0-HALF_WIDTH)
 		z_cuts.append(z*18.0+HALF_WIDTH)
 	var vertices := PackedVector3Array()

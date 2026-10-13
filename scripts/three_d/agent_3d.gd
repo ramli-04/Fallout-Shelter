@@ -93,6 +93,7 @@ func update_visual(data: Dictionary, alpha: float, running: bool, time: float = 
 	if selection_area != null:
 		selection_area.collision_layer = 4 if visible else 0
 	if body == null: return
+	body.rotation.z = PI/2 if data.get("survival_status", "") == "DEAD" else 0.0
 	selection_ring.visible = is_selected and visible
 	id_label.visible = is_selected and visible
 	if last_state != data["state"]:

@@ -72,6 +72,9 @@ static func validate_settings(data: Dictionary) -> String:
 			return "Shelter color must be a valid HTML color."
 		if shelter["shape"] not in ["hexagon", "square", "circle", "diamond", "triangle"]:
 			return "Unsupported shelter shape."
+		for key in ["blast_resistance","terrain_protection"]:
+			if shelter.has(key) and (not _is_number(shelter[key]) or shelter[key] < 0 or (key == "blast_resistance" and shelter[key] == 0)):
+				return "Invalid shelter protection: " + key
 		var supplies: Variant = shelter["supplies_person_days"]
 		if supplies != null and (not _is_number(supplies) or supplies < 0):
 			return "Supplies must be null (unspecified) or a nonnegative number."
