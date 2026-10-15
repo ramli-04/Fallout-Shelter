@@ -23,9 +23,9 @@ class Provider(Protocol):
 
 
 class OllamaProvider:
-    def __init__(self):
+    def __init__(self, model=None):
         self.url = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/')
-        self.model = os.getenv('OLLAMA_MODEL', 'llama3.2:1b')
+        self.model = model or os.getenv('OLLAMA_MODEL', 'llama3.2:1b')
         self.timeout = float(os.getenv('INFERENCE_TIMEOUT', '30'))
         self.context = int(os.getenv('OLLAMA_NUM_CTX', '2048'))
 
@@ -44,10 +44,13 @@ class OllamaProvider:
         except (OSError, ValueError, KeyError):
             return 'DISCONNECTED'
 
-    def generate(self, system, prompt):
-        remaining = max(0.1, getattr(self, 'deadline', time.monotonic() + self.timeout) - time.monotonic())
-        return self.call('/api/chat', {'model': self.model, 'stream': False,
+    def payload(self, system, prompt):
+        return {'model': self.model, 'stream': False,
             'format': DECISION_SCHEMA, 'keep_alive': os.getenv('OLLAMA_KEEP_ALIVE', '2m'),
             'messages': [{'role': 'system', 'content': system},
                          {'role': 'user', 'content': prompt}],
-            'options': {'temperature': float(os.getenv('OLLAMA_TEMPERATURE', '0.3')), 'num_ctx': self.context, 'num_predict': int(os.getenv('OLLAMA_MAX_TOKENS', '128'))}}, timeout=remaining)
+            'options': {'temperature': float(os.getenv('OLLAMA_TEMPERATURE', '0.3')), 'num_ctx': self.context, 'num_predict': int(os.getenv('OLLAMA_MAX_TOKENS', '128'))}}
+
+    def generate(self, system, prompt):
+        remaining = max(0.1, getattr(self, 'deadline', time.monotonic() + self.timeout) - time.monotonic())
+        return self.call('/api/chat', self.payload(system, prompt), timeout=remaining)

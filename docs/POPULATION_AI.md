@@ -1,5 +1,8 @@
 # 150 agents with local AI
 
+Historical single-model configuration. Current 30/120 shared model experiments
+and startup commands are documented in [MULTI_LLM.md](MULTI_LLM.md).
+
 The current scenario has 150 agents (including the existing four authorities). Every agent has configured provider LOCAL_LLM using the shared llama3.2:1b service. Existing rule decisions remain emergency fallback when service, validation or timeout fails.
 
 Shelter capacities are S1 125, S2 37, S3 90, S4 175, S5 250. Capacities are divided by twenty and rounded down to whole occupants. Public rough capacity estimates and the scoring normalizer use the same scale. Supply quantities and S5's hidden existence remain unchanged.
@@ -10,7 +13,7 @@ The Godot bridge uses a FIFO queue with one active inference request. Each agent
 
 The decision interval is a minimum between requests for a particular agent, not a guarantee that all 150 receive a decision every twelve seconds. One local model serves them sequentially. If an average decision takes two seconds, a full round takes roughly 300 seconds before retries or terminal-agent skips. Faster simulation speeds advance the scenario without increasing model throughput. Start at 1x. The game stays responsive, but some agents can still await their first decision when the evacuation deadline arrives.
 
-Start from the project folder with `tools/start_ai.cmd`, then open `project.godot`, press F5, start the simulation and launch the alarm. See `ai_service/README.md` for Python setup. Adjust population in `resources/phase1.json` and AI count in `resources/ai_config.json` together when increasing beyond 150. AI can be disabled for original rule-only behavior.
+Start from the project folder using [Docker Compose](DOCKER.md), then open `project.godot`, press F5, start the simulation and launch the alarm. See `ai_service/README.md` for service configuration. Adjust population in `resources/phase1.json` and AI count in `resources/ai_config.json` together when increasing beyond 150. AI can be disabled for original rule-only behavior.
 
 Verification includes `tests/test_population_ai.gd`, exercised through the scripted HTTP test service:
 

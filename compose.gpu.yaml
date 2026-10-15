@@ -1,0 +1,4 @@
+# Optional NVIDIA GPU access (Docker Desktop Linux containers / WSL2).
+services:
+  ollama:
+    gpus: all

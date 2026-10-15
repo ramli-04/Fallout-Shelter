@@ -41,7 +41,7 @@ $GodotExe = 'C:/Users/Moham/Downloads/godot/Godot_v4.7.2-stable_win64_console.ex
 .venv/Scripts/python.exe -m unittest discover -s tests -p 'test_*.py'
 ```
 
-For live inference, start the existing service using tools/start_ai.cmd (Ollama must already be running), then run tests/test_phase31_real.gd. A real llama3.2:1b inference was executed successfully during this work: A001 returned MOVE_TO_SHELTER targeting S4, and Godot applied MOVING. Transport fixtures are explicitly TEST_ONLY and do not replace the production provider.
+For live inference, start the services using [Docker Compose](DOCKER.md), then run tests/test_phase31_real.gd. A real llama3.2:1b inference was executed successfully during this work: A001 returned MOVE_TO_SHELTER targeting S4, and Godot applied MOVING. Transport fixtures are explicitly TEST_ONLY and do not replace the production provider.
 
 ## Limits
 

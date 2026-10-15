@@ -19,6 +19,9 @@ func run() -> void:
 	var sim = app.manager
 	var view = app.map_view
 	sim.set_process(false)
+	# Keep the historical 150-person/POI regression scenario explicit.
+	sim.ai_config["experiment_preset"] = "legacy"
+	sim.settings["agent_count"] = 150
 	sim.ai_config["enabled"] = false
 	sim.initialize_run()
 	for i in range(120):

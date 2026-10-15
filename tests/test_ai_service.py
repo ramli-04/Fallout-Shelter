@@ -35,6 +35,15 @@ class TestProvider:
 
 
 class ServiceTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from unittest.mock import patch
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        environment = patch.dict('os.environ', {'LLM_TRACE_PATH': directory.name + '/traces.jsonl'})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_nested_hidden_fields_do_not_reach_prompt(self):
         request = packet()
         secret = 'HIDDEN_WORLD_SENTINEL'
@@ -151,7 +160,8 @@ class ServiceTests(unittest.TestCase):
             attempts.append(1)
             return {'message': {'content': '{}'}} if len(attempts) == 1 else valid(system, prompt)
         provider.generate = retry
-        main.engine = Engine(provider)
+        from ai_service.pool import ModelPool, MODELS
+        main.engine = ModelPool({name: provider for name in MODELS})
         try:
             client = TestClient(main.app)
             self.assertTrue(client.get('/health').json()['model_available'])
@@ -162,6 +172,7 @@ class ServiceTests(unittest.TestCase):
             provider.generate = lambda *_: {'message': {'content': '{}'}}
             self.assertEqual(client.post('/decide', json=packet()).status_code, 422)
         finally:
+            main.engine.close()
             main.engine = original
 
     def test_ollama_model_check_and_shared_options(self):

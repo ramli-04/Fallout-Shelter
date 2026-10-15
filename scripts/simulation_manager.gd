@@ -85,6 +85,22 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 	if not ai_data is Dictionary:
 		return _fail("Invalid resources/ai_config.json")
 	ai_config = ai_data
+	var preset_error: String = preload("res://scripts/llm_experiments.gd").apply(settings, ai_config)
+	if not preset_error.is_empty(): return _fail(preset_error)
+	for key in ["max_concurrent_requests", "queue_limit", "per_model_concurrency"]:
+		var bound: Variant = ai_config.get(key, 128 if key == "queue_limit" else 1)
+		if not (bound is int or bound is float) or not is_finite(float(bound)) or bound != floorf(bound) or bound < 1 or bound > (512 if key == "queue_limit" else 8):
+			return _fail("Invalid AI " + key)
+	var model_weights: Variant = ai_config.get("model_weights", [])
+	if not model_weights is Array or (not model_weights.is_empty() and model_weights.size() != 3):
+		return _fail("model_weights must be empty or contain three weights")
+	var weight_total := 0.0
+	for weight in model_weights:
+		if not (weight is int or weight is float) or not is_finite(float(weight)) or weight < 0: return _fail("Invalid model weight")
+		weight_total += float(weight)
+	if not model_weights.is_empty() and weight_total <= 0: return _fail("Model weights sum must be positive")
+	var queue_timeout: Variant = ai_config.get("queue_timeout_seconds", 120)
+	if not (queue_timeout is int or queue_timeout is float) or not is_finite(float(queue_timeout)) or queue_timeout <= 0: return _fail("queue_timeout_seconds must be positive")
 	if not ai_config.get("enabled") is bool or not ai_config.get("llm_agent_count") is float and not ai_config.get("llm_agent_count") is int:
 		return _fail("AI enabled must be boolean and llm_agent_count an integer.")
 	if ai_config["llm_agent_count"] < 0 or ai_config["llm_agent_count"] != floorf(ai_config["llm_agent_count"]) or ai_config["llm_agent_count"] > settings.get("agent_count", 0):
@@ -304,7 +320,24 @@ func initialize_run() -> void:
 		agent["current_beliefs"] = agent["beliefs"]
 		agent["companion_id"] = "A%03d" % (((index + 1) % int(settings["agent_count"])) + 1)
 		agents.append(agent)
-		log_event("AGENT", "%s spawned • %s • position (%d, %d)" % [agent["id"], agent["role"], agent["position"].x, agent["position"].y])
+	# Apply experiment identities after legacy initialization without discarding minds.
+	if ai_config.get("experiment_preset", "legacy") != "legacy":
+		var experiments = preload("res://scripts/llm_experiments.gd")
+		var tiers: Array = experiments.assignments(agents.size(), seed_value, ai_config)
+		var roles: Array = experiments.roles(agents.size(), int(settings["authority_count"]), seed_value)
+		var location_rng := RandomNumberGenerator.new()
+		location_rng.seed = seed_value + 27011
+		for i in range(agents.size()):
+			var agent: Dictionary = agents[i]
+			agent["role"] = roles[i]
+			agent["model_tier"] = tiers[i]
+			agent["position"] = slots[i]
+			agent["specialization"] = ["Police", "Fire", "Medical"][location_rng.randi_range(0, 2)] if roles[i] == "Authority" else ""
+			agent["initial_location"] = ["Home", "Public space", "Work"][location_rng.randi_range(0, 2)]
+			agent["initial_priority"] = ["Safety", "Companion", "Information"][location_rng.randi_range(0, 2)]
+			agent["current_goal"] = "Live normally; priority: " + agent["initial_priority"]
+	for agent in agents:
+		log_event("AGENT", "%s spawned / %s / position (%d, %d) / model %s" % [agent["id"], agent["role"], agent["position"].x, agent["position"].y, agent.get("model_tier", "llama3.2:1b")])
 	Warning.initialize(self)
 	next_warning_observation = 0.0
 	Rumors.initialize(agents)
@@ -463,7 +496,7 @@ func choose_destination(agent: Dictionary) -> void:
 		agent["fallback_reason"] = "AI service " + ai_bridge.status
 		if elapsed_seconds >= agent.get("next_fallback_log", 0.0):
 			agent["next_fallback_log"] = elapsed_seconds + ai_config["decision_interval_seconds"]
-			ai_bridge.record_result({"agent_id": agent["id"], "success": false, "inference_requested": false, "fallback_reason": agent["fallback_reason"], "simulation_time": elapsed_seconds})
+			ai_bridge.record_result({"agent_id": agent["id"], "model": agent.get("model_tier", "llama3.2:1b"), "success": false, "inference_requested": false, "fallback_reason": agent["fallback_reason"], "simulation_time": elapsed_seconds})
 	choose_rule_destination(agent)
 
 

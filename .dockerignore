@@ -1,0 +1,5 @@
+**
+!ai_service/
+!ai_service/*.py
+!ai_service/requirements.txt
+!Dockerfile

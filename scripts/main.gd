@@ -60,6 +60,8 @@ var intro_panel: PanelContainer
 var windowed_size := Vector2i(1440, 900)
 var windowed_position := Vector2i.ZERO
 var ai_status_label: Label
+var ai_performance_label: Label
+var experiment_picker: OptionButton
 
 
 func _ready() -> void:
@@ -323,6 +325,34 @@ func _build_settings(parent: VBoxContainer) -> void:
 	var column := Dashboard.column(10)
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	settings_scroll.add_child(column)
+	column.add_child(Dashboard.label("DIRECTOR / AI PERFORMANCE", 16, Dashboard.ACCENT))
+	var trace_button := Button.new()
+	trace_button.text = "Open LLM prompt inspector"
+	trace_button.pressed.connect(func(): OS.shell_open(manager.ai_config.get("service_url", "http://127.0.0.1:8765") + "/inspector"))
+	column.add_child(trace_button)
+	ai_performance_label = Dashboard.label("Waiting for AI metrics", 12, Dashboard.MUTED)
+	ai_performance_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ai_performance_label.custom_minimum_size.x = 275
+	column.add_child(ai_performance_label)
+	var preset_picker := OptionButton.new()
+	experiment_picker = preset_picker
+	for preset in ["30", "120", "rules_30", "rules_120"]: preset_picker.add_item(preset)
+	preset_picker.tooltip_text = "Experiment preset; changing it resets the scenario. 120 requires benchmark opt-in in ai_config.json."
+	column.add_child(preset_picker)
+	preset_picker.item_selected.connect(func(index: int):
+		var config: Dictionary = manager.ai_config.duplicate(true)
+		config["experiment_preset"] = preset_picker.get_item_text(index)
+		config["enabled"] = not preset_picker.get_item_text(index).begins_with("rules_")
+		var settings: Dictionary = manager.settings.duplicate(true)
+		var error: String = preload("res://scripts/llm_experiments.gd").apply(settings, config)
+		if not error.is_empty():
+			manager.log_event("AI", error)
+			for i in range(preset_picker.item_count):
+				if preset_picker.get_item_text(i) == str(manager.ai_config.get("experiment_preset", "30")): preset_picker.select(i)
+			return
+		manager.ai_config = config
+		manager.settings = settings
+		manager.initialize_run())
 	column.add_child(Dashboard.label("SCENARIO SEED", 16, Dashboard.ACCENT))
 	var hint := Dashboard.label("The same seed recreates the same scenario. Applying a seed resets the simulation.", 14, Dashboard.MUTED)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -361,6 +391,9 @@ func _build_settings(parent: VBoxContainer) -> void:
 
 
 func _on_run_initialized() -> void:
+	if experiment_picker != null:
+		for i in range(experiment_picker.item_count):
+			if experiment_picker.get_item_text(i) == str(manager.ai_config.get("experiment_preset", "30")): experiment_picker.select(i)
 	effects.stop_siren()
 	intro_panel.show()
 	_toggle_drawer("")
@@ -475,6 +508,8 @@ func _on_simulation_updated() -> void:
 func _process(delta: float) -> void:
 	if manager != null and manager.ai_bridge != null and ai_status_label != null:
 		ai_status_label.text = "AI / %s / %d agents / queue %d / active %d" % [manager.ai_bridge.status, int(manager.ai_config.get("llm_agent_count", 0)), manager.ai_bridge.decision_queue.size(), manager.ai_bridge.pending.size()]
+		ai_status_label.tooltip_text = manager.ai_bridge.dashboard_text()
+		if ai_performance_label != null: ai_performance_label.text = manager.ai_bridge.dashboard_text()
 	ui_refresh_time += delta
 	if ui_dirty and ui_refresh_time >= 0.1:
 		ui_refresh_time = 0

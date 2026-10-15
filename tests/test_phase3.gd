@@ -22,8 +22,8 @@ func run() -> void:
 	root.add_child(manager)
 	check(manager.load_settings(), "load configuration")
 	manager.initialize_run()
-	check(manager.agents.size() == 150, "150 existing-world people")
-	check(manager.agents.filter(func(a): return a["configured_provider"] == "LOCAL_LLM").size() == 150, "all agents use LLM")
+	check(manager.agents.size() == int(manager.settings["agent_count"]), "preset population")
+	check(manager.agents.filter(func(a): return a["configured_provider"] == "LOCAL_LLM").size() == int(manager.ai_config["llm_agent_count"]), "configured LLM population")
 	manager.launch_nuke()
 	var agent: Dictionary = manager.agents.filter(func(a): return a["configured_provider"] == "LOCAL_LLM")[0]
 	manager.choose_destination(agent)

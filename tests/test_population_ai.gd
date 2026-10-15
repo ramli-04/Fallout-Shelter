@@ -18,14 +18,20 @@ func run() -> void:
 	var app: Control = MAIN.instantiate()
 	root.add_child(app)
 	var manager: Node = app.manager
+	manager.ai_config["max_concurrent_requests"] = 1 # explicit serial transport regression
+	if not OS.get_environment("ESSAIM_TEST_POPULATION").is_empty():
+		manager.ai_config["experiment_preset"] = OS.get_environment("ESSAIM_TEST_POPULATION")
+		manager.ai_config["enable_120"] = true
+		preload("res://scripts/llm_experiments.gd").apply(manager.settings, manager.ai_config)
 	manager.ai_config["service_url"] = OS.get_environment("ESSAIM_TEST_URL")
 	manager.ai_config["health_interval_seconds"] = 0.2
 	manager.ai_config["decision_interval_seconds"] = 120
 	manager.settings["evacuation"]["decision_interval_seconds"] = 120
 	manager.initialize_run()
-	check(manager.agents.size() == 150, "150 configured agents")
-	check(app.map_view.agent_nodes.size() == 150, "150 3D avatars")
-	check(app.agent_picker.item_count == 151, "all agents selectable")
+	var population: int = manager.settings["agent_count"]
+	check(manager.agents.size() == population, "preset agents")
+	check(app.map_view.agent_nodes.size() == population, "preset 3D avatars")
+	check(app.agent_picker.item_count == population+1, "all agents selectable")
 	var ids := {}
 	var positions := {}
 	for agent in manager.agents:
@@ -34,7 +40,7 @@ func run() -> void:
 		check(agent["configured_provider"] == "LOCAL_LLM", "AI configured for " + agent["id"])
 		for building in Manager.CityMap.building_rects():
 			check(not building.has_point(agent["position"]), "spawn outside building")
-	check(ids.size() == 150 and positions.size() == 150, "unique IDs and clear distinct spawn points")
+	check(ids.size() == population and positions.size() == population, "unique IDs and clear distinct spawn points")
 	var capacities := []
 	for shelter in manager.shelters:
 		capacities.append(shelter["capacity"])
@@ -47,10 +53,10 @@ func run() -> void:
 		agent["wait_until"] = 0
 		manager.choose_destination(agent)
 	check(manager.ai_bridge.pending.size() == 1, "only one inference in flight")
-	check(manager.ai_bridge.decision_queue.size() == 149, "remaining agents fairly queued")
+	check(manager.ai_bridge.decision_queue.size() == population-1, "remaining agents fairly queued")
 	for agent in manager.agents:
 		manager.choose_destination(agent)
-	check(manager.ai_bridge.decision_queue.size() == 149, "duplicate scheduling does not duplicate requests")
+	check(manager.ai_bridge.decision_queue.size() == population-1, "duplicate scheduling does not duplicate requests")
 	var started: float = manager.elapsed_seconds
 	var deadline := Time.get_ticks_msec() + 60000
 	while Time.get_ticks_msec() < deadline:

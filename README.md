@@ -1,3 +1,30 @@
+# ESSAIM — shared multi-LLM experiments
+
+Current scheduling: **three concurrent requests, one per shared model**.
+Inspect prompts, raw answers and live model metrics at
+http://127.0.0.1:8765/inspector (or Godot Settings → Open LLM prompt inspector).
+See [concurrency and trace guide](docs/LLM_INSPECTOR.md).
+
+Default: **30 agents** sharing qwen2.5:0.5b, llama3.2:1b and qwen2.5:1.5b
+(18/9/3). The 120-agent preset (72/36/12) requires benchmark opt-in.
+See [installation, scheduler, Director metrics and experiment settings](docs/MULTI_LLM.md).
+
+# Docker startup
+
+Start Docker Desktop with Linux containers, then run from the project folder:
+
+```powershell
+docker compose up -d ollama
+docker compose run --rm model-pull  # explicit first-time model download
+docker compose run --rm model-pull pull qwen2.5:0.5b
+docker compose run --rm model-pull pull qwen2.5:1.5b
+docker compose up -d --build ai-service
+Invoke-RestMethod http://127.0.0.1:8765/health
+```
+
+Open Godot and press F5. The old AI startup scripts are replaced by Compose.
+See [Docker setup, GPU option and troubleshooting](docs/DOCKER.md).
+
 # Citywide warning sirens
 
 The right-rail **siren tower icon** opens network activation, individual tests, audio modes/volume, coverage and damage inspection. Physical rooftop/tower speakers use spatial audio, scheduled local announcements and final-minute urgency, synchronized with the existing simulation clock. Agents receive only perceived warnings. [Warning system guide and test results](docs/WARNING_SIRENS.md) ? [Temporary audio provenance and recording import](assets/audio/warnings/README.md).
@@ -6,11 +33,11 @@ The right-rail **siren tower icon** opens network activation, individual tests, 
 
 The existing project now has a configurable 2?3? city, five service POIs, reusable animated vault entrances, Director impact selection/preview, actual building and shelter destruction, blast survival metrics and same-seed reset. Start in Preparation, open the Settings gear, and scroll to **NUCLEAR IMPACT CONTROLLER**. Read [the Phase 3.5 guide](docs/PHASE_35_GUIDE.md) for controls, configuration, tests and limits, and [the architecture checkpoint](docs/PHASE_35_ARCHITECTURE.md).
 
-Phase 3.5 supersedes the historical statements below that impact is cosmetic or survival is not modeled. Immediate blast survival is now modeled; ten-day survival remains future work. The preserved 150-agent Ollama setup remains the current AI configuration.
+Phase 3.5 supersedes the historical statements below that impact is cosmetic or survival is not modeled. Immediate blast survival is now modeled; ten-day survival remains future work. Current AI configuration uses the shared 30/120-agent model pool described above.
 
 ---
 
-# ESSAIM â€” La DerniÃ¨re Chance
+# ESSAIM â€” La Dernière Chance
 
 Academic multi-agent simulation for **Mondes Vivants â€” 5A IA & Big Data**.
 The existing Godot project now adds **Phase 3: local Ollama decisions** to the
@@ -113,7 +140,7 @@ Ten-day survival and rationing, Kafka and Storyteller controls remain future
 work. LLM setup, provider contracts, status, metrics and limitations are documented
 in [PHASE_3_GUIDE.md](docs/PHASE_3_GUIDE.md). Earlier `Main.py`, Python models/simulation/configuration and Python tests
 are preserved but do not control the Godot game.
-# Current setup: 150 AI agents
+# Historical setup: 150 AI agents
 
 The interface uses a full-window map with a warm-white, sage and charcoal palette. Press the play triangle to begin; the two bars pause. People, house and journal icons on the right toggle Agents, Shelters and Logs; selecting an entity opens its information automatically. All action buttons have descriptive hover tooltips. Bottom controls sit on a 50%-transparent toolbar with opaque icons. The gear opens Settings, containing seed input, apply-seed and random-scenario controls. The fullscreen icon or F11 toggles display mode. Escape closes the active panel.
 

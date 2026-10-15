@@ -80,7 +80,7 @@ func run() -> void:
 	app.seed_picker.value = 123
 	app.new_run_button.pressed.emit()
 	await settle()
-	check(app.manager.seed_value == 123 and app.manager.agents.size() == 150, "settings apply seed without changing population")
+	check(app.manager.seed_value == 123 and app.manager.agents.size() == int(app.manager.settings["agent_count"]), "settings apply seed without changing population")
 	app.drawer_buttons["settings"].pressed.emit()
 	app.random_button.pressed.emit()
 	await settle()

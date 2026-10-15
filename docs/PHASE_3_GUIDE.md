@@ -6,7 +6,13 @@ five configured for LOCAL_LLM and fifteen RULE_BASED. Offline LLM agents use
 FALLBACK_RULE_BASED. The production service calls Ollama; it has no scripted AI
 provider. Test providers exist only in tests and are explicitly labeled.
 
-## Beginner setup on Windows
+## Current Docker startup
+
+Use [Docker Compose](DOCKER.md) instead of the removed start_ai and check_ollama
+scripts. The setup below is historical; current settings use 150 agents and
+llama3.2:1b. See ai_service/README.md for the manual Python alternative.
+
+## Historical beginner setup on Windows
 
 1. Install Python **3.12** (or 3.11) from https://www.python.org/downloads/ with
    the Python launcher enabled. Confirm `py -3.12 --version`. This workspace
