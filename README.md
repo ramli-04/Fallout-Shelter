@@ -1,5 +1,12 @@
 # ESSAIM — shared multi-LLM experiments
 
+# Phase 4.5 valley world
+
+The city now has curved streets, mountain scenery, a raised highway, varied districts,
+and horizontal city hatches versus vertical mountain vaults. See the
+[world redesign report](docs/PHASE_45_WORLD.md) for controls, files, validation,
+performance and known limits.
+
 # Phase 4 concurrent agents
 
 The map now includes seeded large buildings, Central Park and a hilly green

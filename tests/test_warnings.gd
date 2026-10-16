@@ -22,7 +22,7 @@ func run() -> void:
 	var invalid: Dictionary = sim.warning_config.duplicate(true)
 	invalid["max_audible_sirens"] = 50
 	check(not sim.Warning.validate(invalid).is_empty(),"invalid channel cap rejected")
-	check(sim.sirens.size() == 18 and network.nodes.size() == 18,"18 reusable physical sirens across expanded city")
+	check(sim.sirens.size() == 43 and network.nodes.size() == sim.sirens.size(),"43 reusable physical sirens across expanded city")
 	for site in ["Police Station","Fire Station","School"]:
 		check(sim.sirens.any(func(s): return s["site"] == site and s["mount"] == "ROOFTOP"),"rooftop siren at "+site)
 	check(sim.sirens.any(func(s): return s["mount"] == "POLE"),"dedicated intersection towers")
@@ -119,8 +119,8 @@ func run() -> void:
 	for i in range(3):
 		network.test_siren(sim.sirens[0]["id"])
 		sim.initialize_run()
-	check(network.nodes.size() == 18 and network.nodes.all(func(n): return not n.player.playing),"repeated test/reset does not accumulate loops")
-	check(sim.sirens.all(func(s): return s["state"] == "INACTIVE") and not network.explosion.playing and network.nodes.size() == 18,"reset restores towers without duplicate players")
+	check(network.nodes.size() == sim.sirens.size() and network.nodes.all(func(n): return not n.player.playing),"repeated test/reset does not accumulate loops")
+	check(sim.sirens.all(func(s): return s["state"] == "INACTIVE") and not network.explosion.playing and network.nodes.size() == sim.sirens.size(),"reset restores towers without duplicate players")
 	sim.launch_nuke(true)
 	sim.advance_clock(1000)
 	check(sim.phase == "ALL_CLEAR" and sim.sirens.all(func(s): return s["state"] == "INACTIVE"),"false alarm clears sirens without blast")

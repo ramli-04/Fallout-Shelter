@@ -55,7 +55,8 @@ func reset_overview() -> void:
 	if settings.is_empty(): return
 	var bounds: Vector2 = preload("res://scripts/city_map.gd").MAP_SIZE * 0.1
 	settings["bounds_max"] = [bounds.x, bounds.y]
-	settings["max_distance"] = 800.0
+	settings["max_distance"] = bounds.x*1.35
+	camera.far = bounds.x*9.0
 	settings["overview_distance"] = bounds.x * 1.12
 	target_focus = Vector3(bounds.x/2, 0.18, bounds.y/2)
 	target_yaw = settings["overview_yaw_degrees"]

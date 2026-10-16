@@ -16,13 +16,13 @@ func configure(sim: Node, map: Node) -> void:
 	add_child(_label("NUCLEAR IMPACT CONTROLLER"))
 	var size_picker := OptionButton.new()
 	map_size_picker = size_picker
-	for name in ["Compact (2x)","Large (2.5x)","Extended (3x)"]: size_picker.add_item(name)
+	for name in ["Compact (2x)","Large (2.5x)","Extended (3x)","Valley (3.75x)"]: size_picker.add_item(name)
 	size_picker.select(1)
 	add_child(size_picker)
 	fields.append(size_picker)
 	size_picker.item_selected.connect(func(i):
 		if manager.phase != "PREPARATION": return
-		manager.nuclear["map_scale"] = [2.0,2.5,3.0][i]
+		manager.nuclear["map_scale"] = [2.0,2.5,3.0,3.75][i]
 		manager.initialize_run())
 	x_input = _number("Impact X (simulation units)",0,5400,2250)
 	y_input = _number("Impact Y (simulation units)",0,3240,1350)
@@ -94,13 +94,21 @@ func configure(sim: Node, map: Node) -> void:
 		manager.set_impact(preload("res://scripts/city_map.gd").MAP_SIZE/2)
 		sync()
 		view.update_impact_marker())
+	var landmark_picker := OptionButton.new()
+	for title in ["Focus landmark?","Bank","Police Station","Medical Station","Fire Station","School","Nuclear impact"]: landmark_picker.add_item(title)
+	landmark_picker.item_selected.connect(func(index):
+		if index > 0: view.focus_landmark(landmark_picker.get_item_text(index)))
+	add_child(landmark_picker)
 	readout = _label("Select a shelter for actual state. Preview leaves simulation unchanged.")
 	add_child(readout)
 	manager.run_initialized.connect(sync)
 func sync() -> void:
+	var bounds: Vector2 = preload("res://scripts/city_map.gd").MAP_SIZE
+	x_input.max_value = bounds.x
+	y_input.max_value = bounds.y
 	radius_input.set_value_no_signal(manager.nuclear["radius"])
 	severity_input.set_value_no_signal(manager.nuclear["severity"])
-	map_size_picker.select([2.0,2.5,3.0].find(float(manager.nuclear["map_scale"])))
+	map_size_picker.select([2.0,2.5,3.0,3.75].find(float(manager.nuclear["map_scale"])))
 	random_toggle.set_pressed_no_signal(manager.nuclear["random_impact"])
 	x_input.set_value_no_signal(manager.nuclear["impact_position"][0])
 	y_input.set_value_no_signal(manager.nuclear["impact_position"][1])

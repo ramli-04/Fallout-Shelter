@@ -1,76 +1,53 @@
 extends NavigationRegion3D
-## Connected non-overlapping road/sidewalk polygons, with buildings excluded geometrically.
-## Existing fixed-clock routes remain authoritative: nav queries validate their 3D waypoints.
+## Obstacle-aware raster surface matching free-space simulation movement.
 const Coordinates = preload("res://scripts/three_d/world_coordinates.gd")
-const HALF_WIDTH := 4.0
+const Map = preload("res://scripts/city_map.gd")
+const CELL := 90.0
 var walkable_rects: Array[Rect2] = []
 
 func _ready() -> void:
+	name = "PedestrianNavigation"
 	navigation_mesh = create_mesh()
 
 func create_mesh() -> NavigationMesh:
-	var x_cuts: Array[float] = []
-	var z_cuts: Array[float] = []
-	var map = preload("res://scripts/city_map.gd")
-	map.ensure()
-	for x in map.x_cuts:
-		x_cuts.append(x*0.1-HALF_WIDTH)
-		x_cuts.append(x*0.1+HALF_WIDTH)
-	for z in map.y_cuts:
-		z_cuts.append(z*0.1-HALF_WIDTH)
-		z_cuts.append(z*0.1+HALF_WIDTH)
 	var vertices := PackedVector3Array()
 	var polygons: Array[PackedInt32Array] = []
-	var vertex_ids := {}
+	var ids := {}
 	walkable_rects.clear()
-	for i in range(x_cuts.size()-1):
-		for j in range(z_cuts.size()-1):
-			if i%2 != 0 and j%2 != 0:
-				continue
-			var rect := Rect2(Vector2(x_cuts[i], z_cuts[j]), Vector2(x_cuts[i+1]-x_cuts[i], z_cuts[j+1]-z_cuts[j]))
-			walkable_rects.append(rect)
+	for x in range(int(Map.MAP_SIZE.x/CELL)):
+		for y in range(int(Map.MAP_SIZE.y/CELL)):
+			var rect := Rect2(Vector2(x,y)*CELL,Vector2.ONE*CELL)
+			var valid := true
+			for obstacle in Map.lots+[Map.lake]+Map.rock_obstacles:
+				if rect.intersects(obstacle.grow(14)): valid = false; break
+			if not valid: continue
 			var polygon := PackedInt32Array()
-			for corner in [Vector2i(i,j), Vector2i(i,j+1), Vector2i(i+1,j+1), Vector2i(i+1,j)]:
-				if not vertex_ids.has(corner):
-					vertex_ids[corner] = vertices.size()
-					vertices.append(Coordinates.to_world(Vector2(x_cuts[corner.x],z_cuts[corner.y])/0.1))
-				polygon.append(vertex_ids[corner])
+			for corner in [Vector2i(x,y),Vector2i(x,y+1),Vector2i(x+1,y+1),Vector2i(x+1,y)]:
+				if not ids.has(corner):
+					ids[corner] = vertices.size()
+					vertices.append(Coordinates.to_world(Vector2(corner)*CELL))
+				polygon.append(ids[corner])
 			polygons.append(polygon)
+			walkable_rects.append(Rect2(rect.position*0.1,rect.size*0.1))
 	var mesh := NavigationMesh.new()
 	mesh.agent_radius = 0.45
 	mesh.agent_height = 1.8
 	mesh.vertices = vertices
-	for polygon in polygons:
-		mesh.add_polygon(polygon)
+	for polygon in polygons: mesh.add_polygon(polygon)
 	return mesh
 
 func contains(point: Vector3) -> bool:
-	for rect in walkable_rects:
-		if rect.grow(0.001).has_point(Vector2(point.x, point.z)):
-			return true
-	return false
-
-func show_debug_surface() -> void:
-	# Explicit overlay also works in standalone runs; editor debug hints are not toggled.
-	var surface := SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for rect in walkable_rects:
-		var a := Coordinates.to_world(rect.position/0.1,Coordinates.FLOOR_Y+0.045)
-		var b := Coordinates.to_world(Vector2(rect.position.x,rect.end.y)/0.1,Coordinates.FLOOR_Y+0.045)
-		var c := Coordinates.to_world(rect.end/0.1,Coordinates.FLOOR_Y+0.045)
-		var d := Coordinates.to_world(Vector2(rect.end.x,rect.position.y)/0.1,Coordinates.FLOOR_Y+0.045)
-		for vertex in [a,b,c,a,c,d]: surface.add_vertex(vertex)
-	var node := MeshInstance3D.new()
-	node.mesh = surface.commit()
-	var material := preload("res://scripts/three_d/geometry.gd").material(Color(0.25,0.85,0.95,0.30),true)
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	node.material_override = material
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(node)
+	return Map.clear_point(Coordinates.to_simulation(point))
 
 func path_between(start: Vector3, destination: Vector3) -> PackedVector3Array:
-	var map := get_world_3d().navigation_map
-	if NavigationServer3D.map_get_iteration_id(map) == 0:
-		return PackedVector3Array()
-	return NavigationServer3D.map_get_path(map, start, destination, true)
+	# Use the same obstacle-aware authority as fixed-clock movement, including narrow approaches.
+	var result := PackedVector3Array()
+	for point in Map.free_route(Coordinates.to_simulation(start),Coordinates.to_simulation(destination)):
+		result.append(Coordinates.to_world(point))
+	return result
+
+func show_debug_surface() -> void:
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = navigation_mesh.get_debug_mesh()
+	mesh.material_override = preload("res://scripts/three_d/geometry.gd").material(Color("5bd7e0"),true)
+	add_child(mesh)

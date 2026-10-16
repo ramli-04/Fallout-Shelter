@@ -160,6 +160,18 @@ func focus_selected() -> void:
 	if is_instance_valid(selected_node) and selected_node in agent_nodes:
 		follow_agent = true
 		camera_rig.focus_at(Coordinates.to_world(selected_node.record["position"]))
+	elif is_instance_valid(selected_node):
+		follow_agent = false
+		camera_rig.focus_at(Coordinates.to_world(selected_node.record["position"]))
+
+func focus_landmark(kind: String) -> void:
+	follow_agent = false
+	if kind == "Nuclear impact":
+		camera_rig.focus_at(Coordinates.to_world(Vector2(manager.nuclear["impact_position"][0],manager.nuclear["impact_position"][1])))
+	else:
+		for poi in manager.points_of_interest:
+			if poi["kind"] == kind: camera_rig.focus_at(Coordinates.to_world(poi["footprint"].get_center()))
+	camera_rig.target_distance = 65.0
 
 func _cancel_drag() -> void:
 	dragging_pan = false
@@ -257,7 +269,7 @@ func pick_entity(local_point: Vector2) -> Node3D:
 		hit = world.get_world_3d().direct_space_state.intersect_ray(query)
 	if hit.is_empty(): return null
 	var collider: Object = hit["collider"]
-	# Prefer a bean inside the gate's generous selection area, while opaque buildings
+	# Prefer a person inside the gate's generous selection area, while opaque buildings
 	# still block the ray. A selection volume is not a solid wall.
 	if collider is Area3D and int(collider.collision_layer) == 2:
 		query.collision_mask = 1|4
@@ -293,12 +305,6 @@ func select_shelter(record: Dictionary) -> void:
 
 func select_agent(record: Dictionary) -> void:
 	clear_selection()
-	if is_instance_valid(city):
-		world.remove_child(city)
-		city.queue_free()
-	city = CITY.instantiate()
-	world.add_child(city)
-	city.sun.shadow_enabled = visual_quality == 1
 	for node in agent_nodes:
 		if node.record["id"] == record["id"]:
 			selected_node = node

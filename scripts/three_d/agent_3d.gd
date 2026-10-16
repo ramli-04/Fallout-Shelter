@@ -35,6 +35,7 @@ func _ready() -> void:
 	body = Node3D.new()
 	add_child(body)
 	_create_human(index)
+	_detail_lod(body)
 	selection_ring = Geometry.ring(self,0.9,Color("ffe8a3"))
 	selection_ring.position.y = 0.035
 	selection_ring.visible = false
@@ -104,6 +105,12 @@ func _create_human(index: int) -> void:
 		skirt.mesh.top_radius = 0.26
 	elif index%4 == 2:
 		Geometry.cylinder(body,0.29,0.11,Vector3(0,2.28,0),unique_color.darkened(0.25))
+
+func _detail_lod(node: Node) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D and child.mesh != null and child.mesh.get_aabb().size.y < 0.30:
+			child.visibility_range_end = 120.0
+		_detail_lod(child)
 
 func set_selected(value: bool) -> void:
 	is_selected = value

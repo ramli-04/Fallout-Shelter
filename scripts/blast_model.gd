@@ -37,7 +37,7 @@ static func validate(config: Variant) -> String:
 		if not config.has(key) or not (config[key] is float or config[key] is int) or not is_finite(float(config[key])) or config[key] < 0:
 			return "Invalid nuclear number: " + key
 	if config["building_resistance"] <= 0: return "Building resistance must be positive."
-	if config["map_scale"] not in [2.0,2.5,3.0] or config["radius"] < 10 or config["radius"] > 700 or config["severity"] > 4:
+	if config["map_scale"] not in [2.0,2.5,3.0,3.75] or config["radius"] < 10 or config["radius"] > 700 or config["severity"] > 4:
 		return "Nuclear map scale, radius or severity out of bounds."
 	for key in ["damaged_capacity_fraction","damaged_supply_fraction"]:
 		if config[key] > 1: return "Damage fractions must be within [0,1]."

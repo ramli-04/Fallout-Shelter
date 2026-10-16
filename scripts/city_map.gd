@@ -1,6 +1,6 @@
-﻿extends Node2D
+extends Node2D
 ## Seeded shared geography. Simulation, rendering, spawns and routes use this source.
-static var MAP_SIZE := Vector2(4500, 2700)
+static var MAP_SIZE := Vector2(6750, 4050)
 const ROAD_SPACING := 180 # Legacy unit used by incident radii and historical fixtures.
 static var map_seed := 42
 static var x_cuts: Array[float] = []
@@ -17,7 +17,11 @@ static var noise: FastNoiseLite
 static var graph: AStar2D
 static var pois: Array[Dictionary] = []
 static var free_grid: AStarGrid2D
-const FREE_CELL := 24.0
+const FREE_CELL := 30.0
+static var lot_angles: Array[float] = []
+static var lot_districts: Array[String] = []
+static var rock_obstacles: Array[Rect2] = []
+static var highways: Array[PackedVector2Array] = []
 
 static func generate(seed_value: int) -> void:
 	map_seed = seed_value
@@ -27,50 +31,92 @@ static func generate(seed_value: int) -> void:
 	noise.seed = seed_value
 	noise.frequency = 0.0018
 	noise.fractal_octaves = 3
-	green_zone = Rect2(Vector2(MAP_SIZE.x*0.5, 0), MAP_SIZE*0.5)
-	park = Rect2(MAP_SIZE*Vector2(0.29,0.25), MAP_SIZE*Vector2(0.25,0.50))
-	hill = MAP_SIZE*Vector2(rng.randf_range(0.75,0.84), rng.randf_range(0.19,0.28))
-	x_cuts = _cuts(MAP_SIZE.x, rng, [park.position.x, park.end.x, park.get_center().x, green_zone.position.x, hill.x])
-	y_cuts = _cuts(MAP_SIZE.y, rng, [park.position.y, park.end.y, park.get_center().y, green_zone.end.y, hill.y])
-	hill = _nearest_junction(hill)
-	# The reservoir sits inside a park block, away from all walking routes.
-	var px := x_cuts.find(park.position.x)
-	var py := y_cuts.find(park.position.y)
-	lake = Rect2(Vector2(x_cuts[px]+65,y_cuts[py]+65), Vector2(maxf(80,x_cuts[px+1]-x_cuts[px]-130),maxf(80,y_cuts[py+1]-y_cuts[py]-130)))
-	sites = {"S1": park.get_center(), "S5": hill}
-	sites["S2"] = _nearest_junction(MAP_SIZE*Vector2(0.19,0.38))
-	sites["S3"] = _nearest_junction(MAP_SIZE*Vector2(0.66,0.78))
-	sites["S4"] = _nearest_junction(MAP_SIZE*Vector2(0.12,0.83))
+	green_zone = Rect2(MAP_SIZE*Vector2(0.50,0),MAP_SIZE*0.5)
+	park = Rect2(MAP_SIZE*Vector2(0.13,0.55),MAP_SIZE*Vector2(0.17,0.25))
+	hill = MAP_SIZE*Vector2(0.86,0.13)
+	lake = Rect2(MAP_SIZE*Vector2(0.15,0.59),MAP_SIZE*Vector2(0.045,0.055))
+	sites = {"S1":park.get_center(),"S2":MAP_SIZE*Vector2(0.48,0.78),"S3":MAP_SIZE*Vector2(0.80,0.70),"S4":MAP_SIZE*Vector2(0.90,0.33),"S5":hill}
 	graph = AStar2D.new()
 	roads.clear()
 	edge_lookup.clear()
-	for x in range(x_cuts.size()):
-		for y in range(y_cuts.size()):
-			graph.add_point(x*y_cuts.size()+y, Vector2(x_cuts[x],y_cuts[y]))
-	for x in range(x_cuts.size()):
-		for y in range(y_cuts.size()):
-			var id := x*y_cuts.size()+y
-			if x+1 < x_cuts.size(): _connect(id, (x+1)*y_cuts.size()+y)
-			if y+1 < y_cuts.size(): _connect(id, id+1)
+	# Warped, staggered junctions; each edge is a sampled spline, not a painted grid.
+	x_cuts = [0.0,MAP_SIZE.x]
+	y_cuts = [0.0,MAP_SIZE.y]
+	var columns := 10
+	var rows := 6
+	for x in range(columns):
+		for y in range(rows):
+			var uv := Vector2(0.06+x*0.091,0.19+y*0.145)
+			uv += Vector2(rng.randf_range(-0.023,0.023),rng.randf_range(-0.035,0.035))
+			uv.x += sin(y*1.3)*0.024
+			graph.add_point(x*rows+y,uv*MAP_SIZE)
+	for x in range(columns):
+		for y in range(rows):
+			var id := x*rows+y
+			if x+1 < columns: _organic_connect(id,(x+1)*rows+y,rng)
+			if y+1 < rows and (x+y)%4 != 1: _organic_connect(id,id+1,rng)
+			if x+1 < columns and y+1 < rows and (x+y)%4 == 0: _organic_connect(id,(x+1)*rows+y+1,rng)
+	# Shelter approaches join the same network, including remote winding roads.
+	for key in sites:
+		var point: Vector2 = sites[key]
+		var near := graph.get_closest_point(point)
+		var id := graph.get_available_point_id()
+		graph.add_point(id,point)
+		_organic_connect(near,id,rng)
+	rock_obstacles.clear()
+	for key in ["S4","S5"]:
+		for side in [-1,1]:
+			rock_obstacles.append(Rect2(sites[key]+Vector2(10 if side > 0 else -175,20),Vector2(165,220)))
+	highways.clear()
+	var highway := PackedVector2Array()
+	for i in range(101):
+		var t := float(i)/100
+		highway.append(Vector2(lerpf(-0.12,1.14,t),0.19+sin(t*TAU+0.4)*0.055)*MAP_SIZE)
+	highways.append(highway)
 	lots.clear()
-	for x in range(x_cuts.size()-1):
-		for y in range(y_cuts.size()-1):
-			var block := Rect2(Vector2(x_cuts[x]+52,y_cuts[y]+52),Vector2(x_cuts[x+1]-x_cuts[x]-104,y_cuts[y+1]-y_cuts[y]-104))
-			if block.size.x < 110 or block.size.y < 110 or park.intersects(block) or green_zone.intersects(block): continue
-			var divisions := 2 if block.size.x > 370 and rng.randf() < 0.7 else 1
-			for part in range(divisions):
-				var available := Rect2(block.position+Vector2(part*block.size.x/divisions,0),Vector2(block.size.x/divisions-14,block.size.y))
-				var size := available.size*Vector2(rng.randf_range(0.72,0.98),rng.randf_range(0.65,0.98))
-				var rect := Rect2(available.position+Vector2(rng.randf_range(0,available.size.x-size.x),rng.randf_range(0,available.size.y-size.y)),size)
-				var clear := true
+	lot_angles.clear()
+	lot_districts.clear()
+	for edge in roads:
+		if edge["trail"]: continue
+		var points: PackedVector2Array = edge["points"]
+		for i in range(2,points.size()-2,2):
+			var tangent := (points[i+1]-points[i-1]).normalized()
+			var normal := Vector2(-tangent.y,tangent.x)
+			for side in [-1,1]:
+				var center: Vector2 = points[i]+normal*side*rng.randf_range(125,165)
+				if not Rect2(MAP_SIZE*0.03,MAP_SIZE*0.94).has_point(center): continue
+				if park.grow(30).has_point(center) or green_zone.has_point(center): continue
+				var district := district_at(center)
+				var size := rng.randf_range(95,165) if district == "RESIDENTIAL" else rng.randf_range(150,225)
+				var rect := Rect2(center-Vector2.ONE*size*0.5,Vector2.ONE*size)
+				var clear := not lake.grow(30).intersects(rect) and not park.intersects(rect) and not green_zone.intersects(rect)
 				for site in sites.values():
-					if rect.grow(95).has_point(site): clear = false
-				if clear: lots.append(rect)
+					if rect.grow(125).has_point(site): clear = false
+				for other in lots:
+					if rect.grow(18).intersects(other): clear = false
+				for road in roads:
+					for point in road["points"]:
+						if rect.grow(45).has_point(point): clear = false
+				if clear:
+					lots.append(rect)
+					lot_angles.append(-tangent.angle()+(PI if side == 1 else 0.0))
+					lot_districts.append(district)
 	pois.clear()
-	var kinds := ["Police Station", "Fire Station", "Medical Station", "Bank", "School"]
-	for i in range(mini(kinds.size(), lots.size())):
-		var rect: Rect2 = lots[int(float(i+1)*lots.size()/(kinds.size()+1))]
-		pois.append({"id":"POI%d" % i,"kind":kinds[i],"position":nearest_lane_point(rect.get_center()),"footprint":rect,"roof_position":rect.position+rect.size*0.12})
+	var kinds := ["Bank","Police Station","Medical Station","Fire Station","School"]
+	var targets := [Vector2(0.45,0.45),Vector2(0.55,0.51),Vector2(0.64,0.58),Vector2(0.65,0.64),Vector2(0.73,0.78)]
+	var used := []
+	for i in range(kinds.size()):
+		var best := -1
+		var distance := INF
+		for j in range(lots.size()):
+			var d := lots[j].get_center().distance_squared_to(targets[i]*MAP_SIZE)
+			if j not in used and d < distance:
+				distance = d
+				best = j
+		if best >= 0:
+			used.append(best)
+			var rect: Rect2 = lots[best]
+			pois.append({"id":"POI%d"%i,"kind":kinds[i],"position":nearest_lane_point(rect.get_center()),"footprint":rect,"roof_position":rect.get_center()})
 	free_grid = AStarGrid2D.new()
 	free_grid.region = Rect2i(0,0,ceili(MAP_SIZE.x/FREE_CELL),ceili(MAP_SIZE.y/FREE_CELL))
 	free_grid.cell_size = Vector2.ONE*FREE_CELL
@@ -79,7 +125,7 @@ static func generate(seed_value: int) -> void:
 	free_grid.default_compute_heuristic = AStarGrid2D.HEURISTIC_OCTILE
 	free_grid.default_estimate_heuristic = AStarGrid2D.HEURISTIC_OCTILE
 	free_grid.update()
-	for rect in lots+[lake]:
+	for rect in lots+[lake]+rock_obstacles:
 		var bounds: Rect2 = rect.grow(12)
 		var first := Vector2i((bounds.position/FREE_CELL).floor())
 		var last := Vector2i((bounds.end/FREE_CELL).ceil())
@@ -87,52 +133,26 @@ static func generate(seed_value: int) -> void:
 			for y in range(maxi(0,first.y),mini(free_grid.region.end.y,last.y+1)):
 				if bounds.has_point(Vector2(x,y)*FREE_CELL+Vector2.ONE*FREE_CELL*0.5): free_grid.set_point_solid(Vector2i(x,y))
 
-static func _cuts(extent: float, rng: RandomNumberGenerator, anchors: Array) -> Array[float]:
-	var result: Array[float] = [0.0,extent]
-	for anchor in anchors:
-		var separated := true
-		for value in result:
-			if absf(value-float(anchor)) < 100: separated = false
-		if separated: result.append(float(anchor))
-	var point := rng.randf_range(350,500)
-	while point < extent-200:
-		var clear := true
-		for value in result:
-			if absf(value-point) < 230: clear = false
-		if clear: result.append(point)
-		point += rng.randf_range(370,600)
-	result.sort()
-	return result
+static func district_at(point: Vector2) -> String:
+	var uv := point/MAP_SIZE
+	if uv.x < 0.25 and uv.y < 0.52: return "INDUSTRIAL"
+	if uv.x > 0.52 and uv.y < 0.5: return "MOUNTAINS"
+	if uv.distance_to(Vector2(0.46,0.48)) < 0.22: return "CENTER"
+	if uv.x > 0.55 and uv.y < 0.73: return "SERVICES"
+	return "RESIDENTIAL"
 
-static func _nearest_junction(point: Vector2) -> Vector2:
-	var result := Vector2.ZERO
-	var distance := INF
-	for x in x_cuts:
-		for y in y_cuts:
-			var candidate := Vector2(x,y)
-			if candidate.distance_squared_to(point) < distance:
-				result = candidate
-				distance = candidate.distance_squared_to(point)
-	return result
-
-static func _connect(a: int, b: int) -> void:
+static func _organic_connect(a: int, b: int, rng: RandomNumberGenerator) -> void:
 	graph.connect_points(a,b)
 	var start := graph.get_point_position(a)
 	var finish := graph.get_point_position(b)
-	var middle := (start+finish)*0.5
-	var trail := park.grow(-2).has_point(middle) or green_zone.grow(-2).has_point(middle)
+	var delta := finish-start
+	var normal := Vector2(-delta.y,delta.x).normalized()
+	var bend := rng.randf_range(-0.19,0.19)*delta.length()
 	var points := PackedVector2Array()
-	var segments := maxi(1,int(start.distance_to(finish)/25)) if trail else 1
-	var ix := x_cuts.find(start.x)
-	var iy := y_cuts.find(start.y)
-	var vertical := is_equal_approx(start.x,finish.x)
-	var sign_value := 1.0 if (ix+iy+map_seed)%2 == 0 else -1.0
-	for i in range(segments+1):
-		var t := float(i)/segments
-		var point := start.lerp(finish,t)
-		if trail:
-			point += (Vector2.RIGHT if vertical else Vector2.DOWN)*sin(t*PI)*32*sign_value
-		points.append(point)
+	for i in range(maxi(8,int(delta.length()/35))+1):
+		var t := float(i)/maxi(8,int(delta.length()/35))
+		points.append(start.lerp(finish,t)+normal*sin(t*PI)*bend)
+	var trail := green_zone.has_point((start+finish)*0.5) or park.has_point((start+finish)*0.5)
 	roads.append({"a":start,"b":finish,"from":a,"to":b,"trail":trail,"points":points})
 	edge_lookup[Vector2i(a,b)] = points
 
@@ -161,15 +181,20 @@ static func is_park(cell: Vector2i) -> bool:
 
 static func elevation(point: Vector2) -> float:
 	if noise == null: return 0.0
-	var normalized := point/MAP_SIZE
-	var hills := 32.0*exp(-pow((point.x-hill.x)/(MAP_SIZE.x*0.14),2)-pow((point.y-hill.y)/(MAP_SIZE.y*0.22),2))
-	var western_ridge := 9.0*exp(-pow((normalized.x-0.10)/0.13,2)-pow((normalized.y-0.80)/0.24,2))
-	var rolling := noise.get_noise_2d(point.x,point.y)*1.8 + sin(normalized.y*PI*3.0)*0.8
-	var height := rolling + hills + western_ridge
+	var uv := point/MAP_SIZE
+	var ridges := 55.0*exp(-pow((uv.x-0.89)/0.16,2)-pow((uv.y-0.15)/0.30,2))
+	var height := noise.get_noise_2d(point.x,point.y)*1.1+ridges
 	if lake.size.x > 0:
 		var relative := (point-lake.get_center())/(lake.size*0.5)
-		var blend := 1.0-smoothstep(0.8,1.35,relative.length())
-		height = lerpf(height,-1.4,blend)
+		height = lerpf(height,-1.4,1.0-smoothstep(0.8,1.35,relative.length()))
+	# Foundation pads blend into natural terrain instead of leaving floating corners.
+	for rect in lots:
+		if rect.grow(32).has_point(point):
+			var center := rect.get_center()
+			var local_uv := center/MAP_SIZE
+			var base := noise.get_noise_2d(center.x,center.y)*1.1+55.0*exp(-pow((local_uv.x-0.89)/0.16,2)-pow((local_uv.y-0.15)/0.30,2))
+			var outside := maxf(maxf(rect.position.x-point.x,point.x-rect.end.x),maxf(rect.position.y-point.y,point.y-rect.end.y))
+			height = lerpf(base,height,smoothstep(0,32,outside))
 	return height
 
 static func nearest_edge(point: Vector2) -> Dictionary:
@@ -257,24 +282,24 @@ static func spawn_slots() -> Array[Vector2]:
 	var result: Array[Vector2] = []
 	for edge in roads:
 		if edge["trail"]: continue
-		var direction: Vector2 = (edge["b"]-edge["a"]).normalized()
-		var normal := Vector2(-direction.y,direction.x)
-		var steps := int(edge["a"].distance_to(edge["b"])/45)
-		for step in range(1,steps):
+		var points: PackedVector2Array = edge["points"]
+		for i in range(1,points.size()-1,2):
+			var direction := (points[i+1]-points[i-1]).normalized()
+			var normal := Vector2(-direction.y,direction.x)
 			for side in [-1,1]:
-				var point: Vector2 = edge["a"]+direction*step*45+normal*side*26
-				if Rect2(Vector2(30,30),MAP_SIZE-Vector2(60,60)).has_point(point): result.append(point)
+				var point: Vector2 = points[i]+normal*side*29
+				if clear_point(point,15): result.append(point)
 	return result
 
 static func clear_point(point: Vector2, clearance: float = 8.0) -> bool:
 	if not Rect2(Vector2.ONE*12,MAP_SIZE-Vector2.ONE*24).has_point(point): return false
 	if lake.grow(clearance).has_point(point): return false
-	for rect in lots:
+	for rect in lots+rock_obstacles:
 		if rect.grow(clearance).has_point(point): return false
 	return true
 
 static func clear_segment(a: Vector2, b: Vector2) -> bool:
-	for original in lots+[lake]:
+	for original in lots+[lake]+rock_obstacles:
 		var rect: Rect2 = original.grow(9)
 		if rect.has_point(a) or rect.has_point(b): return false
 		var corners := [rect.position,Vector2(rect.end.x,rect.position.y),rect.end,Vector2(rect.position.x,rect.end.y)]

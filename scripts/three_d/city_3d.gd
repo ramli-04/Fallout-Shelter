@@ -23,6 +23,8 @@ func _ready() -> void:
 		add_child(building)
 		buildings.append(building)
 	_build_landscape()
+	var valley := preload("res://scenes/three_d/valley_environment.tscn").instantiate()
+	add_child(valley)
 	navigation_region = preload("res://scripts/three_d/road_navigation_3d.gd").new()
 	navigation_region.name = "RoadNavigation"
 	add_child(navigation_region)
@@ -42,6 +44,12 @@ func _ready() -> void:
 	environment.ambient_light_color = Color("d9e5e8")
 	environment.ambient_light_energy = 0.30
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.fog_enabled = true
+	environment.fog_light_color = Color("b5c6ce")
+	environment.fog_density = 0.00012
+	environment.fog_sun_scatter = 0.0
+	environment.fog_light_energy = 0.25
+	environment.fog_sky_affect = 0.7
 	environment_node.environment = environment
 	add_child(environment_node)
 
@@ -59,8 +67,8 @@ func _terrain_color(point: Vector2) -> Color:
 func _build_terrain() -> void:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var columns := 120
-	var rows := 80
+	var columns := 180
+	var rows := 108
 	for x in range(columns):
 		for y in range(rows):
 			var a := Vector2(float(x)/columns,float(y)/rows)*CityMap.MAP_SIZE
@@ -75,20 +83,8 @@ func _build_terrain() -> void:
 	var terrain := MeshInstance3D.new()
 	terrain.name = "SculptedTerrain"
 	terrain.mesh = surface.commit()
-	var material := ShaderMaterial.new()
-	material.shader = preload("res://scripts/three_d/terrain.gdshader")
-	material.set_shader_parameter("map_size",CityMap.MAP_SIZE)
-	material.set_shader_parameter("map_seed",CityMap.map_seed)
-	material.set_shader_parameter("x_count",CityMap.x_cuts.size())
-	material.set_shader_parameter("y_count",CityMap.y_cuts.size())
-	var xs := PackedFloat32Array(CityMap.x_cuts)
-	var ys := PackedFloat32Array(CityMap.y_cuts)
-	xs.resize(32)
-	ys.resize(32)
-	material.set_shader_parameter("x_cuts",xs)
-	material.set_shader_parameter("y_cuts",ys)
-	material.set_shader_parameter("park_bounds",Vector4(CityMap.park.position.x,CityMap.park.position.y,CityMap.park.end.x,CityMap.park.end.y))
-	material.set_shader_parameter("reserve_bounds",Vector4(CityMap.green_zone.position.x,CityMap.green_zone.position.y,CityMap.green_zone.end.x,CityMap.green_zone.end.y))
+	var material := Geometry.material(Color.WHITE)
+	material.vertex_color_use_as_albedo = true
 	terrain.material_override = material
 	add_child(terrain)
 	var body := StaticBody3D.new()
@@ -103,14 +99,14 @@ func _build_landscape() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = CityMap.map_seed+61909
 	var positions: Array[Vector2] = []
-	for _i in range(1600):
+	for _i in range(2800):
 		var point := Vector2(rng.randf()*CityMap.MAP_SIZE.x,rng.randf()*CityMap.MAP_SIZE.y)
 		if not CityMap.park.has_point(point) and not CityMap.green_zone.has_point(point): continue
 		if CityMap.lake.grow(30).has_point(point): continue
 		if CityMap.nearest_lane_point(point).distance_to(point) < 40: continue
 		var reserved := false
 		for site in CityMap.sites.values():
-			if point.distance_to(site) < 90: reserved = true
+			if point.distance_to(site) < 190: reserved = true
 		if not reserved: positions.append(point)
 	var trunk_mesh := CylinderMesh.new()
 	trunk_mesh.top_radius = 0.16
@@ -140,7 +136,7 @@ func _build_landscape() -> void:
 		var material := Geometry.material(Color.WHITE)
 		material.vertex_color_use_as_albedo = true
 		batch.material_override = material
-		batch.visibility_range_end = 950
+		batch.visibility_range_end = 1600
 		add_child(batch)
 		vegetation.append(batch)
 	# An inset reservoir gives the park a shoreline and visibly depressed terrain.
@@ -173,7 +169,7 @@ func _build_landscape() -> void:
 	# District names do not reveal whether the rumored fifth shelter actually exists.
 	Geometry.label(self,"CENTRAL PARK",_ground(CityMap.park.get_center()+Vector2(0,300),5),Color("e0efd0"),46,0.09)
 	Geometry.label(self,"HIGHLAND RESERVE",_ground(CityMap.hill+Vector2(0,-300),8),Color("e0efd0"),40,0.09)
-	Geometry.label(self,"DOWNTOWN",_ground(CityMap.MAP_SIZE*Vector2(0.73,0.75),12),Color("f3e0ba"),40,0.08)
+	Geometry.label(self,"DOWNTOWN",_ground(CityMap.MAP_SIZE*Vector2(0.46,0.48),12),Color("f3e0ba"),40,0.08)
 	for child in get_children():
 		if child is Label3D:
 			child.visibility_range_begin = 60.0
@@ -182,6 +178,8 @@ func set_warning(active: bool) -> void:
 	if sun != null: sun.light_color = Color("ffd0b5") if active else Color("fff0d5")
 
 func devastate(records: Array, config: Dictionary) -> void:
+	var valley := get_node_or_null("ValleyEnvironment")
+	if valley: valley.devastate(config)
 	var blast = preload("res://scripts/blast_model.gd")
 	var center := Vector2(config["impact_position"][0],config["impact_position"][1])*0.1
 	for i in range(mini(buildings.size(),records.size())):

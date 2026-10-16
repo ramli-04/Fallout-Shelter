@@ -1,8 +1,8 @@
 {
-  "map_scale": 2.5,
+  "map_scale": 3.75,
   "impact_position": [
-    2250,
-    1350
+    3375,
+    2025
   ],
   "random_impact": false,
   "radius": 300.0,

@@ -16,18 +16,36 @@ func configure(rect: Rect2, index: int) -> void:
 	position = coordinates.to_world(rect.get_center())
 	var palette := [Color("c8b99e"),Color("d2a483"),Color("929f9f"),Color("8a9ea8"),Color("b6b4a7"),Color("b18d78")]
 	var color: Color = palette[rng.randi_range(0,palette.size()-1)]
-	var downtown := 1.0-clampf(rect.get_center().distance_to(map.MAP_SIZE*Vector2(0.69,0.73))/(map.MAP_SIZE.x*0.5),0,1)
-	height = rng.randf_range(7,20) + downtown*rng.randf_range(8,44)
+	var downtown := 1.0-clampf(rect.get_center().distance_to(map.MAP_SIZE*Vector2(0.46,0.48))/(map.MAP_SIZE.x*0.5),0,1)
+	height = rng.randf_range(5,10) + downtown*rng.randf_range(5,19)
+	var district: String = map.lot_districts[index]
+	rotation.y = map.lot_angles[index]
 	var style := rng.randi_range(0,4)
+	var civic := false
 	for poi in map.points_of_interest():
 		if poi["footprint"] == rect:
+			civic = true
 			height = 3.5 if poi["kind"] == "School" else 4.5
 			style = 2
 			var colors := {"Police Station":"9cbdcd","Fire Station":"c66e60","Medical Station":"e6ecda","Bank":"b1bda6","School":"d9b578"}
 			color = Color(colors[poi["kind"]])
-	var width := rect.size.x*0.1
-	var depth := rect.size.y*0.1
+	var width := rect.size.x*0.067
+	var depth := rect.size.y*0.067
 	Geometry.box(self,Vector3(width,2.2,depth),Vector3(0,-0.9,0),Color("7e8175"))
+	if not civic and district == "RESIDENTIAL" and rng.randf() < 0.70:
+		height = rng.randf_range(3.2,6.0)
+		_wing(Vector3(width,height,depth),Vector3.ZERO,color)
+		var roof := Geometry.cylinder(self,width*0.72,2.4,Vector3(0,height+1.15,0),Color("995f47"))
+		roof.mesh.radial_segments = 4
+		roof.mesh.top_radius = 0.0
+		roof.rotation.y = PI/4
+		return
+	if not civic and district == "INDUSTRIAL":
+		height = rng.randf_range(4,7)
+		_wing(Vector3(width,height,depth),Vector3.ZERO,Color("89958b"))
+		for side in [-1,1]:
+			Geometry.cylinder(self,0.8,height*1.8,Vector3(side*width*0.3,height*0.9,0),Color("807c72"))
+		return
 	match style:
 		0: # L-shaped apartments with a real courtyard recess.
 			_wing(Vector3(width*0.43,height,depth),Vector3(-width*0.285,0,0),color)
@@ -79,7 +97,7 @@ func _wing(size: Vector3, base: Vector3, color: Color) -> void:
 	add_child(windows)
 
 func add_poi(kind: String) -> void:
-	var front := footprint.size.y*0.05+0.1
+	var front := footprint.size.y*0.0335+0.1
 	var color := Color("618eae") if kind == "Police Station" else Color("b95450") if kind == "Fire Station" else Color("e4eadc") if kind == "Medical Station" else Color("b4b891")
 	Geometry.box(self,Vector3(9.3,1.0,0.2),Vector3(0,2.6,front),color)
 	Geometry.label(self,kind.to_upper(),Vector3(0,height+1.2,0),color,24,0.025)
