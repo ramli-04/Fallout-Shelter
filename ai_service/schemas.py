@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class Decision(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    action: Literal["MOVE_TO_SHELTER", "WAIT", "OBSERVE", "COMMUNICATE"]
+    action: Literal["MOVE_TO_SHELTER", "WAIT", "OBSERVE", "COMMUNICATE", "DANCE", "FLEE_RANDOMLY", "HELP_AGENT", "FOLLOW_AGENT"]
     target: str = Field(max_length=64)
     message: str = Field(max_length=160)
     reason: str = Field(max_length=240)

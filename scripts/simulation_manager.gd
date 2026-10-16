@@ -9,6 +9,7 @@ signal simulation_updated
 signal siren_activated
 signal impact_occurred(summary: Dictionary)
 signal all_clear
+signal bomb_fall_started
 
 const ScenarioConfig = preload("res://scripts/scenario_config.gd")
 const CityMap = preload("res://scripts/city_map.gd")
@@ -20,6 +21,7 @@ const Personality = preload("res://scripts/agent_personality.gd")
 const Beliefs = preload("res://scripts/agent_beliefs.gd")
 const Incidents = preload("res://scripts/environment_events.gd")
 const Rumors = preload("res://scripts/rumor_system.gd")
+const Activity = preload("res://scripts/civilian_activity.gd")
 const Reactions = preload("res://scripts/agent_reactions.gd")
 const CONFIG_PATH := "res://resources/phase1.json"
 
@@ -57,6 +59,8 @@ var alarm_is_real := true
 var next_contact_seconds := 0.0
 var ai_config: Dictionary = {}
 var ai_bridge: Node
+var activity_config: Dictionary = {}
+var bomb_fall_elapsed := 0.0
 
 func _ready() -> void:
 	ai_bridge = preload("res://scripts/llm_bridge.gd").new()
@@ -85,6 +89,7 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 	if not ai_data is Dictionary:
 		return _fail("Invalid resources/ai_config.json")
 	ai_config = ai_data
+	activity_config = JSON.parse_string(FileAccess.get_file_as_string("res://resources/agent_activity.json"))
 	var preset_error: String = preload("res://scripts/llm_experiments.gd").apply(settings, ai_config)
 	if not preset_error.is_empty(): return _fail(preset_error)
 	for key in ["max_concurrent_requests", "queue_limit", "per_model_concurrency"]:
@@ -219,6 +224,7 @@ func initialize_run() -> void:
 		randomize_impact()
 	else:
 		set_impact(Vector2(nuclear["impact_position"][0],nuclear["impact_position"][1]))
+	bomb_fall_elapsed = 0.0
 	elapsed_seconds = 0.0
 	simulation_speed = float(settings["simulation_speed"])
 	phase = "PREPARATION"
@@ -341,6 +347,7 @@ func initialize_run() -> void:
 			agent["initial_priority"] = ["Safety", "Companion", "Information"][location_rng.randi_range(0, 2)]
 			agent["current_goal"] = "Live normally; priority: " + agent["initial_priority"]
 	for agent in agents:
+		Activity.initialize(self,agent)
 		log_event("AGENT", "%s spawned / %s / position (%d, %d) / model %s" % [agent["id"], agent["role"], agent["position"].x, agent["position"].y, agent.get("model_tier", "llama3.2:1b")])
 	Warning.initialize(self)
 	next_warning_observation = 0.0
@@ -377,6 +384,11 @@ func launch_nuke(force_false: bool = false) -> void:
 	remaining_seconds = countdown_seconds
 	log_event("SIREN", "Emergency siren activated. Seek shelter; exact impact time is unknown.")
 	log_event("DIRECTOR", "Alarm %s; hidden delay %ds." % ["real" if alarm_is_real else "false", countdown_seconds], "director")
+	for agent in agents:
+		agent["movement_speed"] = agent["run_speed"]
+		agent["route"] = PackedVector2Array()
+		agent["route_index"] = 0
+		_set_state(agent,"IDLE")
 	Warning.activate(self,true)
 	siren_activated.emit()
 	Warning.perceive(self)
@@ -399,8 +411,12 @@ func _process(delta: float) -> void:
 
 
 func advance_clock(delta: float) -> void:
-	if not running or phase not in ["LIVING", "EVACUATION"] or delta <= 0 or not is_finite(delta):
+	if not running or phase not in ["LIVING", "EVACUATION", "BOMB_FALL"] or delta <= 0 or not is_finite(delta):
 		return
+	var falling := phase == "BOMB_FALL"
+	if falling:
+		delta = minf(delta, float(activity_config["bomb_fall_seconds"])-bomb_fall_elapsed)
+		bomb_fall_elapsed += delta
 	accumulator += delta * simulation_speed
 	if phase == "EVACUATION":
 		accumulator = minf(accumulator, remaining_seconds)
@@ -411,12 +427,14 @@ func advance_clock(delta: float) -> void:
 			break
 		accumulator = maxf(0, accumulator - duration)
 		_step(duration)
+	if falling and bomb_fall_elapsed >= float(activity_config["bomb_fall_seconds"])-0.000001:
+		_trigger_impact()
 	clock_changed.emit(elapsed_seconds, running)
 	simulation_updated.emit()
 
 
 func _step(duration: float) -> void:
-	if phase == "EVACUATION":
+	if phase in ["EVACUATION", "BOMB_FALL"]:
 		if elapsed_seconds >= next_warning_observation:
 			Warning.perceive(self)
 			next_warning_observation = elapsed_seconds+0.5
@@ -427,8 +445,10 @@ func _step(duration: float) -> void:
 		Rumors.exchange(self)
 		next_contact_seconds += living["communication_interval"]
 	if phase == "LIVING":
+		Activity.roam(self,duration)
 		elapsed_seconds += duration
 		return
+	Activity.crowd_actions(self)
 	if elapsed_seconds + 0.000001 >= next_decision_seconds:
 		for agent in agents:
 			if agent["state"] in ["MOVING", "DECIDING"]:
@@ -440,6 +460,7 @@ func _step(duration: float) -> void:
 	var arrivals: Array[Dictionary] = []
 	for agent in agents:
 		agent["previous_position"] = agent["position"]
+		if Activity.special(self,agent,duration): continue
 		if agent["state"] == "WAITING_ROAD" and not Incidents.road_blocks(agent, environment_events, living["road_radius"]):
 			_set_state(agent, "MOVING")
 			agent["current_goal"] = "Reach " + agent["objective"]
@@ -454,7 +475,7 @@ func _step(duration: float) -> void:
 		var movement := Routes.move(agent, duration)
 		if movement["arrived"]:
 			arrivals.append({"agent": agent, "offset": movement["travel_seconds"]})
-	elapsed_seconds = minf(alarm_started_seconds + countdown_seconds, elapsed_seconds + duration)
+	elapsed_seconds = elapsed_seconds + duration if phase == "BOMB_FALL" else minf(alarm_started_seconds + countdown_seconds, elapsed_seconds + duration)
 	remaining_seconds = maxf(0, alarm_started_seconds + countdown_seconds - elapsed_seconds)
 	# Earlier arrivals in a tick win; seeded priorities break exact ties, not list order.
 	arrivals.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -465,9 +486,9 @@ func _step(duration: float) -> void:
 		return a["agent"]["admission_priority"] < b["agent"]["admission_priority"])
 	for arrival in arrivals:
 		admit_arrival(arrival["agent"])
-	if remaining_seconds <= 0.000001:
+	if phase == "EVACUATION" and remaining_seconds <= 0.000001:
 		if alarm_is_real:
-			_trigger_impact()
+			_begin_bomb_fall()
 		else:
 			_trigger_all_clear()
 
@@ -493,7 +514,7 @@ func _set_state(agent: Dictionary, state: String) -> void:
 
 
 func choose_destination(agent: Dictionary) -> void:
-	if agent.get("configured_provider", "RULE_BASED") == "LOCAL_LLM" and ai_bridge != null and phase == "EVACUATION" and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE"]:
+	if agent.get("configured_provider", "RULE_BASED") == "LOCAL_LLM" and ai_bridge != null and phase in ["EVACUATION", "BOMB_FALL"] and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE"]:
 		if ai_bridge.request_decision(agent):
 			return
 		agent["decision_provider"] = "FALLBACK_RULE_BASED"
@@ -505,7 +526,7 @@ func choose_destination(agent: Dictionary) -> void:
 
 
 func choose_rule_destination(agent: Dictionary) -> void:
-	if phase != "EVACUATION" or agent["state"] in ["SHELTERED", "EXPOSED"]:
+	if phase not in ["EVACUATION", "BOMB_FALL"] or agent["state"] in ["SHELTERED", "EXPOSED"]:
 		return
 	var previous: String = agent["objective"]
 	# Public rough urgency is private to this agent. Never pass the hidden deadline.
@@ -513,7 +534,7 @@ func choose_rule_destination(agent: Dictionary) -> void:
 	var result := Decisions.evaluate(agent, perceived, settings["evacuation"]["weights"])
 	agent["decision_scores"] = result["scores"]
 	var destination: String = result["shelter_id"]
-	if previous == destination and not destination.is_empty():
+	if previous == destination and not destination.is_empty() and not agent["route"].is_empty() and agent["route_index"] < agent["route"].size():
 		if agent["state"] == "DECIDING":
 			_set_state(agent, "MOVING")
 			agent["current_goal"] = "Reach " + destination
@@ -561,16 +582,17 @@ func choose_rule_destination(agent: Dictionary) -> void:
 func admit_arrival(agent: Dictionary) -> String:
 	if agent["state"] == "SHELTERED":
 		return "Already admitted"
-	if phase != "EVACUATION" or agent["objective"].is_empty():
+	if phase not in ["EVACUATION", "BOMB_FALL"] or agent["objective"].is_empty():
 		return "Evacuation is not accepting arrivals"
 	var shelter: Dictionary = shelter_by_id[agent["objective"]]
 	if agent["position"].distance_to(shelter["position"]) > 0.01:
 		return "Agent has not reached entrance"
 	log_event("ARRIVAL", "%s arrived at %s." % [agent["id"], shelter["id"]])
 	Beliefs.observe(agent, shelter, elapsed_seconds, living)
-	var reason := Admission.try_admit(agent, shelter, phase == "EVACUATION")
+	var reason := Admission.try_admit(agent, shelter, phase in ["EVACUATION", "BOMB_FALL"])
 	if reason.is_empty():
 		_set_state(agent, "SHELTERED")
+		agent["sheltered_at"] = elapsed_seconds
 		shelter["current_occupancy"] = shelter["occupancy"]
 		agent["current_goal"] = "Wait inside " + shelter["id"]
 		log_event("ADMITTED", "%s entered %s • %d/%d." % [agent["id"], shelter["id"], shelter["occupancy"], shelter["capacity"]])
@@ -601,6 +623,13 @@ func get_totals() -> Dictionary:
 	return totals
 
 
+func _begin_bomb_fall() -> void:
+	phase = "BOMB_FALL"
+	bomb_fall_elapsed = 0.0
+	remaining_seconds = 0.0
+	log_event("BOMB", "Countdown ended: bomb released. Eight seconds until ground impact.")
+	bomb_fall_started.emit()
+
 func _trigger_impact() -> void:
 	ai_bridge.invalidate_run()
 	if not alarm_is_real:
@@ -609,7 +638,7 @@ func _trigger_impact() -> void:
 	Warning.impact(self)
 	running = false
 	remaining_seconds = 0
-	elapsed_seconds = alarm_started_seconds + countdown_seconds
+	elapsed_seconds = maxf(elapsed_seconds, alarm_started_seconds + countdown_seconds)
 	accumulator = 0
 	for object in world_objects:
 		object["destruction_state"] = "DESTROYED" if Blast.intensity(object["position"],nuclear) > 0 else "INTACT"

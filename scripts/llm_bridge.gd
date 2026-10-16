@@ -31,7 +31,7 @@ func fallback(agent: Dictionary, reason: String) -> void:
 	agent["decision_provider"] = "FALLBACK_RULE_BASED"
 	agent["next_llm_seconds"] = manager.elapsed_seconds + manager.ai_config["decision_interval_seconds"]
 	record_result({"agent_id": agent["id"], "model": agent.get("model_tier", "llama3.2:1b"), "success": false, "inference_requested": false, "fallback_reason": reason})
-	if manager.running and manager.phase == "EVACUATION" and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE", "FROZEN", "HELPING"]:
+	if manager.running and manager.phase in ["EVACUATION", "BOMB_FALL"] and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE", "FROZEN", "HELPING"]:
 		manager.choose_rule_destination(agent)
 
 func dashboard_text(group_filter: String = "ALL", agent_filter: String = "ALL") -> String:
@@ -137,7 +137,7 @@ func _process(_delta: float) -> void:
 			agent["fallback_reason"] = "AI service " + status
 			agent["decision_provider"] = "FALLBACK_RULE_BASED"
 			record_result({"agent_id": agent["id"], "model": agent.get("model_tier", "llama3.2:1b"), "success": false, "inference_requested": false, "fallback_reason": agent["fallback_reason"]})
-			if manager.running and manager.phase == "EVACUATION" and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE", "FROZEN", "HELPING"]:
+			if manager.running and manager.phase in ["EVACUATION", "BOMB_FALL"] and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE", "FROZEN", "HELPING"]:
 				manager.choose_rule_destination(agent)
 		decision_queue.clear()
 		queued.clear()
@@ -209,7 +209,7 @@ func _send_decision(agent: Dictionary) -> bool:
 		var data: Variant = null
 		if result == HTTPRequest.RESULT_SUCCESS and code == 200 and parser.parse(body.get_string_from_utf8()) == OK:
 			data = parser.data
-		if manager.phase != "EVACUATION" or agent["state"] in ["SHELTERED", "EXPOSED", "SAFE"]:
+		if manager.phase not in ["EVACUATION", "BOMB_FALL"] or agent["state"] in ["SHELTERED", "EXPOSED", "SAFE"]:
 			return
 		var valid := result == HTTPRequest.RESULT_SUCCESS and code == 200 and data is Dictionary
 		if valid:
@@ -233,7 +233,7 @@ func _send_decision(agent: Dictionary) -> bool:
 			agent["fallback_reason"] = "HTTP %s / result %s, invalid, paused or stale" % [code, result]
 			agent["decision_provider"] = "FALLBACK_RULE_BASED"
 			manager.log_event("AI", "%s fallback: unavailable, invalid, paused or stale response." % agent["id"])
-			if manager.running and not (agent["state"] in ["FROZEN", "HELPING"] and manager.elapsed_seconds < agent["wait_until"]):
+			if manager.running and not (agent["state"] in ["FROZEN", "HELPING", "DANCING", "STAGGERED"] and manager.elapsed_seconds < agent["wait_until"]):
 				manager.choose_rule_destination(agent)
 		var entry := {"request_id": str(sequence), "agent_id": agent["id"], "success": valid, "model": agent.get("model_tier", "llama3.2:1b"),
 			"simulation_time": manager.elapsed_seconds, "fallback_reason": agent.get("fallback_reason", ""),

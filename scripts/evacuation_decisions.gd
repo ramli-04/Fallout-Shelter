@@ -21,6 +21,9 @@ static func evaluate(agent: Dictionary, remaining: float, weights: Dictionary) -
 	for shelter_id in agent["beliefs"]:
 		var belief: Dictionary = agent["beliefs"][shelter_id]
 		var route := Routes.plan(agent["position"], belief["position"])
+		if route.is_empty():
+			scores[shelter_id] = {"eligible": false, "reason": "No clear route"}
+			continue
 		var distance := Routes.length(route)
 		if agent["objective"] == shelter_id and not agent["route"].is_empty():
 			distance = Routes.remaining_distance(agent)

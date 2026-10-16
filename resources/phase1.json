@@ -3,8 +3,8 @@
   "agent_count": 150,
   "authority_count": 4,
   "speed_range": [
-    1.2,
-    4.8
+    28.0,
+    52.0
   ],
   "trait_range": [
     0.0,

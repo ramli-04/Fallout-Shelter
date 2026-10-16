@@ -120,6 +120,16 @@ class Phase4Tests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['fallback'])
         self.assertEqual(self.runtime.metrics['invalid_responses'], 1)
 
+    async def test_extended_actions_use_common_validation(self):
+        from ai_service.contracts import decision, observation
+        obs = observation(self.request()['observation'])
+        for action in ('DANCE', 'FLEE_RANDOMLY'):
+            answer = json.dumps(dict(action=action, target='', message='', reason='My choice', confidence=.6))
+            self.assertEqual(decision(answer,obs)['action'], action)
+        unknown_help = json.dumps(dict(action='HELP_AGENT', target='UNSEEN', message='', reason='Help', confidence=.6))
+        with self.assertRaises(ValueError):
+            decision(unknown_help,obs)
+
     async def test_cloud_adapters_model_discovery_and_budget(self):
         for kind in ('gemini', 'grok', 'openai'):
             calls = []

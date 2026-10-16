@@ -45,7 +45,7 @@ func run() -> void:
 	var max_frame_seconds := 0.0
 	var previous_frame := Time.get_ticks_usec()
 	var captured := false
-	while manager.phase == "EVACUATION":
+	while manager.phase in ["EVACUATION", "BOMB_FALL"]:
 		await process_frame
 		max_frame_seconds = maxf(max_frame_seconds, (Time.get_ticks_usec()-previous_frame)/1e6)
 		previous_frame = Time.get_ticks_usec()

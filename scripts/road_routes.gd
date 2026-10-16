@@ -1,5 +1,5 @@
 extends RefCounted
-## Routes are planned only at decision time, using the existing orthogonal roads.
+## Free-space routes can cross open ground while avoiding buildings and water.
 
 const CityMap = preload("res://scripts/city_map.gd")
 
@@ -8,7 +8,7 @@ static func intersection(point: Vector2) -> Vector2:
 	return CityMap.nearest_lane_point(point)
 
 static func plan(start: Vector2, destination: Vector2) -> PackedVector2Array:
-	return CityMap.route(start, destination)
+	return CityMap.free_route(start, destination)
 
 
 static func length(route: PackedVector2Array) -> float:

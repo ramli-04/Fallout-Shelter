@@ -31,6 +31,7 @@ var selected_node: Node3D
 var event_visuals: Node3D
 var impact_effect: Control
 var impact_3d: Node3D
+var falling_bomb: Node3D
 var dragging_pan := false
 var dragging_rotate := false
 var mouse_over := false
@@ -100,6 +101,10 @@ func display_run(agents: Array[Dictionary], shelters: Array[Dictionary], reset_c
 	siren_network.rebuild()
 
 func sync_run(agents: Array[Dictionary], shelters: Array[Dictionary], alpha: float, running: bool, time: float = 0) -> void:
+	if manager != null and manager.phase == "BOMB_FALL" and not is_instance_valid(falling_bomb):
+		falling_bomb = preload("res://scripts/three_d/bomb_drop.gd").new()
+		falling_bomb.manager = manager
+		world.add_child(falling_bomb)
 	for index in range(agent_nodes.size()):
 		agent_nodes[index].update_visual(agents[index],alpha,running,time)
 	for node in shelter_nodes:
@@ -113,6 +118,8 @@ func show_warning() -> void:
 	city.set_warning(true)
 
 func show_impact() -> void:
+	if is_instance_valid(falling_bomb): falling_bomb.queue_free()
+	falling_bomb = null
 	siren_network.impact_audio()
 	clear_preview()
 	if is_instance_valid(impact_3d): return
@@ -127,6 +134,8 @@ func show_impact() -> void:
 	city.set_warning(true)
 
 func reset_emergency_visuals() -> void:
+	if is_instance_valid(falling_bomb): falling_bomb.queue_free()
+	falling_bomb = null
 	clear_preview()
 	if is_instance_valid(impact_3d):
 		world.remove_child(impact_3d)

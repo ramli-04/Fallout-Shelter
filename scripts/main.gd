@@ -466,6 +466,8 @@ func _on_clock_changed(elapsed: float, active: bool) -> void:
 		map_view.sync_run(manager.agents,manager.shelters,1,false,manager.elapsed_seconds)
 	clock_label.text = "Elapsed  %s" % _format_time(elapsed)
 	countdown_label.text = _format_time(ceil(manager.remaining_seconds)) if manager.phase == "EVACUATION" else "--:--"
+	if manager.phase == "BOMB_FALL": countdown_label.text = "FALL %.1fs" % maxf(0,8.0-manager.bomb_fall_elapsed)
+	if manager.phase == "BOMB_FALL": warning_label.text = "BOMB RELEASED / TAKE COVER"
 	status_label.text = manager.phase.capitalize() + (" / Running" if active else " / Paused")
 	if manager.phase == "EVACUATION":
 		status_label.text += " / " + ("Real" if manager.alarm_is_real else "False")

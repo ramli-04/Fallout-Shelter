@@ -1,0 +1,11 @@
+{
+  "bomb_fall_seconds": 8.0,
+  "walking_speed_fraction": 0.4,
+  "roam_distance_range": [100.0, 420.0],
+  "panic_scramble_threshold": 82.0,
+  "push_radius": 16.0,
+  "push_distance": 12.0,
+  "door_close_seconds": 2.5,
+  "nihilist_dance_probability": 0.8,
+  "despairing_dance_probability": 0.45
+}

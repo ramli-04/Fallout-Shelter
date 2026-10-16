@@ -1,7 +1,7 @@
 extends RefCounted
 ## Tendencies blended with individual trait variation; no archetype guarantees an outcome.
 
-const TYPES := ["PANICKED", "SKEPTICAL", "GULLIBLE", "DENIAL", "FAMILY-ORIENTED", "SURVIVALIST", "COOPERATIVE", "AGGRESSIVE", "LEADER", "FOLLOWER", "SELF-SACRIFICING", "OVERWHELMED", "OPTIMISTIC", "CAUTIOUS", "OPPORTUNISTIC"]
+const TYPES := ["PANICKED", "SKEPTICAL", "GULLIBLE", "DENIAL", "FAMILY-ORIENTED", "SURVIVALIST", "COOPERATIVE", "AGGRESSIVE", "LEADER", "FOLLOWER", "SELF-SACRIFICING", "OVERWHELMED", "OPTIMISTIC", "CAUTIOUS", "OPPORTUNISTIC", "NIHILIST", "DESPAIRING"]
 const TRAITS := ["panic_level", "trust_level", "skepticism", "cooperation", "risk_tolerance", "self_preservation", "empathy", "authority_trust", "sociability"]
 const MEANS := [
 	[75,50,35,40,65,75,40,50,50], [30,30,85,45,40,65,50,40,35],
@@ -11,7 +11,8 @@ const MEANS := [
 	[30,65,45,80,55,65,75,75,90], [45,80,30,65,45,60,60,70,85],
 	[40,65,35,95,60,25,95,65,70], [65,50,50,40,30,55,65,55,40],
 	[25,75,25,60,75,50,65,65,65], [35,45,70,50,15,75,60,60,40],
-	[30,50,45,35,70,85,35,50,60]]
+	[30,50,45,35,70,85,35,50,60],
+	[25,25,65,25,90,12,40,20,75], [60,35,55,35,75,22,60,30,35]]
 
 static func assign(agent: Dictionary, index: int, order: Array, rng: RandomNumberGenerator, config: Dictionary) -> void:
 	var primary: String = order[index % order.size()]

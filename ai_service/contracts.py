@@ -3,7 +3,7 @@ import json
 import math
 
 from .schemas import Decision
-ACTIONS = ['MOVE_TO_SHELTER', 'WAIT', 'OBSERVE', 'COMMUNICATE']
+ACTIONS = ['MOVE_TO_SHELTER', 'WAIT', 'OBSERVE', 'COMMUNICATE', 'DANCE', 'FLEE_RANDOMLY', 'HELP_AGENT', 'FOLLOW_AGENT']
 FIELDS = {
     'profile': ['id', 'role', 'primary_personality', 'secondary_personality',
                 'panic_level', 'trust_level', 'skepticism', 'cooperation',

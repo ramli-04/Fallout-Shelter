@@ -4,6 +4,8 @@
 
 The map now includes seeded large buildings, Central Park and a hilly green
 reserve. See [procedural map controls and terrain notes](docs/PROCEDURAL_MAP.md).
+People now roam, run freely across clear ground, and use animated humanoid models.
+See [civilian actions and the eight-second bomb descent](docs/CIVILIAN_ACTIVITY.md).
 
 The current runtime uses 30 seeded agents split 10/10/10 across configurable
 provider groups, asyncio actors, and an optional Kafka bridge. See

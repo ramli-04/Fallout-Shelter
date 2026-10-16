@@ -3,7 +3,7 @@ extends RefCounted
 const Routes = preload("res://scripts/road_routes.gd")
 const Beliefs = preload("res://scripts/agent_beliefs.gd")
 const Rumors = preload("res://scripts/rumor_system.gd")
-const ACTIONS := ["MOVE_TO_SHELTER", "WAIT", "OBSERVE", "COMMUNICATE"]
+const ACTIONS := ["MOVE_TO_SHELTER", "WAIT", "OBSERVE", "COMMUNICATE", "DANCE", "FLEE_RANDOMLY", "HELP_AGENT", "FOLLOW_AGENT"]
 
 static func apply(manager: Node, agent: Dictionary, decision: Dictionary) -> bool:
 	if decision.size() != 5 or not (decision.get("confidence") is float or decision.get("confidence") is int):
@@ -18,9 +18,9 @@ static func apply(manager: Node, agent: Dictionary, decision: Dictionary) -> boo
 	var target: String = decision["target"]
 	if action not in ACTIONS or decision["reason"].length() > 240 or decision["message"].length() > 160 or target.length() > 64:
 		return false
-	if manager.phase != "EVACUATION" or agent.get("health", 0) <= 0 or agent["state"] in ["SHELTERED", "EXPOSED", "SAFE"]:
+	if manager.phase not in ["EVACUATION", "BOMB_FALL"] or agent.get("health", 0) <= 0 or agent["state"] in ["SHELTERED", "EXPOSED", "SAFE"]:
 		return false
-	if agent["state"] in ["FROZEN", "HELPING"] and manager.elapsed_seconds < agent["wait_until"]:
+	if agent["state"] in ["FROZEN", "HELPING", "DANCING", "STAGGERED"] and manager.elapsed_seconds < agent["wait_until"]:
 		return false
 	var other := {}
 	if action in ["HELP_AGENT", "FOLLOW_AGENT"] or (action == "COMMUNICATE" and not target.is_empty()):
@@ -35,8 +35,10 @@ static func apply(manager: Node, agent: Dictionary, decision: Dictionary) -> boo
 		if not agent["beliefs"].has(target) or agent["beliefs"][target]["unavailable"]:
 			return false
 		# Only the private believed location is used, including a possibly absent S5.
+		var planned := Routes.plan(agent["position"], agent["beliefs"][target]["position"])
+		if planned.is_empty(): return false
 		agent["objective"] = target
-		agent["route"] = Routes.plan(agent["position"], agent["beliefs"][target]["position"])
+		agent["route"] = planned
 		agent["route_index"] = 1
 		agent["current_goal"] = "Follow " + other["id"] + " toward " + target if action == "FOLLOW_AGENT" else "Reach " + target
 		manager._set_state(agent, "MOVING")
@@ -44,6 +46,7 @@ static func apply(manager: Node, agent: Dictionary, decision: Dictionary) -> boo
 		if agent["position"].distance_to(other["position"]) > manager.living["help_radius"]:
 			return false
 		other["panic_level"] = maxf(0, other["panic_level"]-manager.living["help_panic_reduction"])
+		if other["state"] == "DANCING": other["wait_until"] = manager.elapsed_seconds
 		agent["wait_until"] = manager.elapsed_seconds + manager.living["help_seconds"]
 		agent["current_goal"] = "Help " + target
 		manager._set_state(agent, "HELPING")
@@ -68,6 +71,10 @@ static func apply(manager: Node, agent: Dictionary, decision: Dictionary) -> boo
 		if agent["state"] == "DECIDING":
 			agent["wait_until"] = manager.elapsed_seconds + 2
 			manager._set_state(agent, "DELAYED")
+	elif action == "DANCE":
+		preload("res://scripts/civilian_activity.gd").dance(manager,agent,6.0)
+	elif action == "FLEE_RANDOMLY":
+		preload("res://scripts/civilian_activity.gd").scramble(manager,agent,3.0)
 	else:
 		if action == "OBSERVE":
 			for shelter in manager.shelters:

@@ -70,7 +70,7 @@ static func activate(manager: Node, enabled: bool, manual: bool = false) -> void
 static func mode_at(manager: Node, siren: Dictionary) -> String:
 	var config: Dictionary = manager.warning_config
 	var age: float = manager.elapsed_seconds-siren["active_since"]-siren["start_offset"]
-	if manager.phase == "EVACUATION" and manager.remaining_seconds <= config["final_warning_seconds"]: return "FINAL_WARNING"
+	if manager.phase in ["EVACUATION", "BOMB_FALL"] and manager.remaining_seconds <= config["final_warning_seconds"]: return "FINAL_WARNING"
 	if config["announcements_enabled"] and announcement_available(config) and age >= config["first_announcement_seconds"] and fmod(age-config["first_announcement_seconds"],config["announcement_interval_seconds"]) < config["announcement_duration_seconds"]:
 		return "EMERGENCY_BROADCAST"
 	return "CIVIL_DEFENSE_WAIL" if config["network_mode"] == "EMERGENCY_BROADCAST" and not config["announcements_enabled"] else config["network_mode"]
@@ -79,7 +79,7 @@ static func gain(point: Vector2, siren: Dictionary, indoor: bool, config: Dictio
 	var result := pow(maxf(0,1-distance/float(siren["radius_world"])),2)*db_to_linear(siren["volume_db"]-REFERENCE_VOLUME_DB)
 	return result*config["indoor_gain"] if indoor else result
 static func perceive(manager: Node) -> void:
-	if manager.phase != "EVACUATION": return
+	if manager.phase not in ["EVACUATION", "BOMB_FALL"]: return
 	for agent in manager.agents:
 		if agent.get("health",100) <= 0: continue
 		var indoor: bool = agent.get("indoors",false) or agent["state"] == "SHELTERED"
@@ -131,7 +131,7 @@ static func impact(manager: Node) -> void:
 
 static func audio_age(manager: Node, siren: Dictionary, mode: String) -> float:
 	var age: float = manager.elapsed_seconds-siren["active_since"]-siren["start_offset"]
-	if mode == "FINAL_WARNING" and manager.phase == "EVACUATION" and manager.remaining_seconds <= manager.warning_config["final_warning_seconds"]:
+	if mode == "FINAL_WARNING" and manager.phase in ["EVACUATION", "BOMB_FALL"] and manager.remaining_seconds <= manager.warning_config["final_warning_seconds"]:
 		return manager.warning_config["final_warning_seconds"]-manager.remaining_seconds
 	if mode == "EMERGENCY_BROADCAST" and manager.warning_config["network_mode"] != "EMERGENCY_BROADCAST":
 		return fposmod(age-manager.warning_config["first_announcement_seconds"],manager.warning_config["announcement_interval_seconds"])

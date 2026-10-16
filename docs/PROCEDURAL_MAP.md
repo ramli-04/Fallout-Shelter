@@ -18,7 +18,9 @@ another city. Resetting with the same seed reproduces the same geography.
 
 `scripts/city_map.gd` owns the layout and route graph. The simulation regenerates
 it before creating agents and shelter beliefs, so displayed shelter locations,
-spawn points, private maps and destinations agree. Generated shelter sites
+spawn points, private maps and destinations agree. Civilians now use free-space
+navigation across clear ground; the street/path graph is no longer a mandatory
+walking route. Buildings and the reservoir remain obstacles. Generated shelter sites
 replace the legacy input coordinates in `resources/phase1.json` for each run.
 Existing shelter capacities, availability, memories, sirens and nuclear mechanics
 continue to use the existing simulation systems.

@@ -16,6 +16,8 @@ static var hill := Vector2.ZERO
 static var noise: FastNoiseLite
 static var graph: AStar2D
 static var pois: Array[Dictionary] = []
+static var free_grid: AStarGrid2D
+const FREE_CELL := 24.0
 
 static func generate(seed_value: int) -> void:
 	map_seed = seed_value
@@ -69,6 +71,21 @@ static func generate(seed_value: int) -> void:
 	for i in range(mini(kinds.size(), lots.size())):
 		var rect: Rect2 = lots[int(float(i+1)*lots.size()/(kinds.size()+1))]
 		pois.append({"id":"POI%d" % i,"kind":kinds[i],"position":nearest_lane_point(rect.get_center()),"footprint":rect,"roof_position":rect.position+rect.size*0.12})
+	free_grid = AStarGrid2D.new()
+	free_grid.region = Rect2i(0,0,ceili(MAP_SIZE.x/FREE_CELL),ceili(MAP_SIZE.y/FREE_CELL))
+	free_grid.cell_size = Vector2.ONE*FREE_CELL
+	free_grid.offset = Vector2.ONE*FREE_CELL*0.5
+	free_grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
+	free_grid.default_compute_heuristic = AStarGrid2D.HEURISTIC_OCTILE
+	free_grid.default_estimate_heuristic = AStarGrid2D.HEURISTIC_OCTILE
+	free_grid.update()
+	for rect in lots+[lake]:
+		var bounds: Rect2 = rect.grow(12)
+		var first := Vector2i((bounds.position/FREE_CELL).floor())
+		var last := Vector2i((bounds.end/FREE_CELL).ceil())
+		for x in range(maxi(0,first.x),mini(free_grid.region.end.x,last.x+1)):
+			for y in range(maxi(0,first.y),mini(free_grid.region.end.y,last.y+1)):
+				if bounds.has_point(Vector2(x,y)*FREE_CELL+Vector2.ONE*FREE_CELL*0.5): free_grid.set_point_solid(Vector2i(x,y))
 
 static func _cuts(extent: float, rng: RandomNumberGenerator, anchors: Array) -> Array[float]:
 	var result: Array[float] = [0.0,extent]
@@ -248,6 +265,56 @@ static func spawn_slots() -> Array[Vector2]:
 				var point: Vector2 = edge["a"]+direction*step*45+normal*side*26
 				if Rect2(Vector2(30,30),MAP_SIZE-Vector2(60,60)).has_point(point): result.append(point)
 	return result
+
+static func clear_point(point: Vector2, clearance: float = 8.0) -> bool:
+	if not Rect2(Vector2.ONE*12,MAP_SIZE-Vector2.ONE*24).has_point(point): return false
+	if lake.grow(clearance).has_point(point): return false
+	for rect in lots:
+		if rect.grow(clearance).has_point(point): return false
+	return true
+
+static func clear_segment(a: Vector2, b: Vector2) -> bool:
+	for original in lots+[lake]:
+		var rect: Rect2 = original.grow(9)
+		if rect.has_point(a) or rect.has_point(b): return false
+		var corners := [rect.position,Vector2(rect.end.x,rect.position.y),rect.end,Vector2(rect.position.x,rect.end.y)]
+		for i in range(4):
+			if Geometry2D.segment_intersects_segment(a,b,corners[i],corners[(i+1)%4]) != null: return false
+	return true
+
+static func free_route(start: Vector2, destination: Vector2) -> PackedVector2Array:
+	ensure()
+	if not Rect2(Vector2.ZERO,MAP_SIZE).has_point(start) or not Rect2(Vector2.ZERO,MAP_SIZE).has_point(destination): return PackedVector2Array()
+	if clear_segment(start,destination): return _simplify(PackedVector2Array([start,destination]))
+	var first := _free_cell(start)
+	var last := _free_cell(destination)
+	if first.x < 0 or last.x < 0: return PackedVector2Array()
+	var grid_path := free_grid.get_point_path(first,last)
+	if grid_path.is_empty(): return PackedVector2Array()
+	var points := PackedVector2Array([start])
+	points.append_array(grid_path)
+	points.append(destination)
+	var result := PackedVector2Array([start])
+	var cursor := 0
+	while cursor < points.size()-1:
+		var next := points.size()-1
+		while next > cursor+1 and not clear_segment(points[cursor],points[next]): next -= 1
+		if not clear_segment(points[cursor],points[next]):
+			# An invalid approach never becomes a route through an obstacle.
+			return PackedVector2Array()
+		result.append(points[next])
+		cursor = next
+	return _simplify(result)
+
+static func _free_cell(point: Vector2) -> Vector2i:
+	var cell := Vector2i((point/FREE_CELL).floor())
+	if free_grid.is_in_boundsv(cell) and not free_grid.is_point_solid(cell): return cell
+	for radius in range(1,5):
+		for x in range(-radius,radius+1):
+			for y in range(-radius,radius+1):
+				var candidate := cell+Vector2i(x,y)
+				if free_grid.is_in_boundsv(candidate) and not free_grid.is_point_solid(candidate) and clear_segment(point,free_grid.get_point_position(candidate)): return candidate
+	return Vector2i(-1,-1)
 
 func _draw() -> void:
 	ensure()

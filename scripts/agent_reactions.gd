@@ -61,6 +61,7 @@ static func act(manager: Node, agent: Dictionary, duration: float) -> bool:
 			if other["panic_level"] >= 65 and agent["position"].distance_to(other["position"]) <= manager.living["help_radius"]:
 				agent["helped_ids"].append(other["id"])
 				other["panic_level"] = maxf(0, other["panic_level"]-manager.living["help_panic_reduction"])
+				if other["state"] == "DANCING": other["wait_until"] = time
 				agent["wait_until"] = time + manager.living["help_seconds"]
 				agent["current_goal"] = "Help " + other["id"]
 				manager._set_state(agent, "HELPING")

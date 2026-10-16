@@ -174,6 +174,9 @@ func _build_landscape() -> void:
 	Geometry.label(self,"CENTRAL PARK",_ground(CityMap.park.get_center()+Vector2(0,300),5),Color("e0efd0"),46,0.09)
 	Geometry.label(self,"HIGHLAND RESERVE",_ground(CityMap.hill+Vector2(0,-300),8),Color("e0efd0"),40,0.09)
 	Geometry.label(self,"DOWNTOWN",_ground(CityMap.MAP_SIZE*Vector2(0.73,0.75),12),Color("f3e0ba"),40,0.08)
+	for child in get_children():
+		if child is Label3D:
+			child.visibility_range_begin = 60.0
 
 func set_warning(active: bool) -> void:
 	if sun != null: sun.light_color = Color("ffd0b5") if active else Color("fff0d5")
