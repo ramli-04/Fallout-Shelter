@@ -54,11 +54,14 @@ static func apply(manager: Node, agent: Dictionary, decision: Dictionary) -> boo
 			"claim": decision["message"], "kind": "conversation", "original_source": agent["id"],
 			"current_speaker": agent["id"], "timestamp": manager.elapsed_seconds,
 			"perceived_credibility": 0.65, "hops": 0}
+		var recipients: Array[String] = []
 		for recipient in manager.agents:
 			if recipient["id"] == agent["id"] or (not target.is_empty() and recipient["id"] != target) or recipient["state"] in ["SHELTERED", "EXPOSED", "SAFE"]:
 				continue
 			if recipient["position"].distance_to(agent["position"]) <= manager.living["communication_radius"]:
 				Rumors.receive(recipient, packet, agent, manager.elapsed_seconds, manager.living)
+				recipients.append(recipient["id"])
+		manager.ai_bridge.publish_event("agent.communications", {"speaker": agent["id"], "recipients": recipients, "message": decision["message"]}, agent["id"])
 		# Conversation becomes evidence to evaluate; it never overwrites shelter truth.
 		Beliefs.remember(agent, manager.elapsed_seconds, "I said: " + decision["message"], manager.living)
 		agent["current_goal"] = "Warn nearby people: " + decision["message"]

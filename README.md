@@ -1,5 +1,15 @@
 # ESSAIM — shared multi-LLM experiments
 
+# Phase 4 concurrent agents
+
+The map now includes seeded large buildings, Central Park and a hilly green
+reserve. See [procedural map controls and terrain notes](docs/PROCEDURAL_MAP.md).
+
+The current runtime uses 30 seeded agents split 10/10/10 across configurable
+provider groups, asyncio actors, and an optional Kafka bridge. See
+[Phase 4 setup, measurements, and limitations](docs/PHASE_4.md) for the current
+startup commands. Earlier phase guides describe historical implementations.
+
 Current scheduling: **three concurrent requests, one per shared model**.
 Inspect prompts, raw answers and live model metrics at
 http://127.0.0.1:8765/inspector (or Godot Settings → Open LLM prompt inspector).

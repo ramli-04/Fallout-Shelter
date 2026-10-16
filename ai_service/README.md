@@ -1,4 +1,11 @@
-# Local Llama AI service
+# ESSAIM AI service
+
+**Current implementation:** [Phase 4 concurrent runtime](../docs/PHASE_4.md).
+`main.py` now uses `AsyncRuntime`; the threaded `Engine` and `ModelPool` below
+are retained for legacy tests and historical tooling, not production dispatch.
+Use the Phase 4 Compose commands to enable Kafka. Cloud calls are disabled by default.
+
+## Historical Phase 3 setup
 
 Current default: **30 heterogeneous agents**, a shared three-model pool and a
 bounded asynchronous scheduler. See [multi-LLM setup and benchmarks](../docs/MULTI_LLM.md).

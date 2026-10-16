@@ -65,7 +65,7 @@ func reset_overview() -> void:
 
 func focus_at(point: Vector3) -> void:
 	if settings.is_empty(): return
-	target_focus = Vector3(point.x,0.18,point.z)
+	target_focus = Vector3(point.x,point.y,point.z)
 	_clamp_focus()
 
 func pan(direction: Vector2, delta: float) -> void:
@@ -92,6 +92,7 @@ func zoom_steps(steps: float) -> void:
 	target_distance = clampf(target_distance*pow(1-settings["zoom_sensitivity"],steps),settings["min_distance"],settings["max_distance"])
 
 func _clamp_focus() -> void:
+	target_focus.y = preload("res://scripts/city_map.gd").elevation(Vector2(target_focus.x,target_focus.z)/0.1) + 0.18
 	target_focus.x = clampf(target_focus.x,settings["bounds_min"][0],settings["bounds_max"][0])
 	target_focus.z = clampf(target_focus.z,settings["bounds_min"][1],settings["bounds_max"][1])
 

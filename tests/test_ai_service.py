@@ -149,31 +149,14 @@ class ServiceTests(unittest.TestCase):
         engine.decide(packet())
         self.assertEqual(engine.health()['status'], 'CONNECTED')
 
-    def test_fastapi_endpoints_and_single_retry(self):
+    def test_fastapi_async_runtime_endpoints(self):
         from fastapi.testclient import TestClient
         from ai_service import main
-        original = main.engine
-        provider = TestProvider()
-        valid = provider.generate
-        attempts = []
-        def retry(system, prompt):
-            attempts.append(1)
-            return {'message': {'content': '{}'}} if len(attempts) == 1 else valid(system, prompt)
-        provider.generate = retry
-        from ai_service.pool import ModelPool, MODELS
-        main.engine = ModelPool({name: provider for name in MODELS})
-        try:
+        from unittest.mock import AsyncMock, patch
+        with patch.object(main.engine, 'dispatch', new=AsyncMock(return_value={'run_id': 'test-run'})):
             client = TestClient(main.app)
-            self.assertTrue(client.get('/health').json()['model_available'])
-            response = client.post('/decide', json=packet())
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()['invalid_responses'], 1)
-            self.assertEqual(len(attempts), 2)
-            provider.generate = lambda *_: {'message': {'content': '{}'}}
-            self.assertEqual(client.post('/decide', json=packet()).status_code, 422)
-        finally:
-            main.engine.close()
-            main.engine = original
+            self.assertEqual(client.get('/health').status_code, 200)
+            self.assertEqual(client.post('/decide', json=packet()).json()['run_id'], 'test-run')
 
     def test_ollama_model_check_and_shared_options(self):
         provider = OllamaProvider()

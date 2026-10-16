@@ -11,7 +11,7 @@ static func validate_settings(data: Dictionary) -> String:
 		if not _is_number(data[key]) or float(data[key]) != floor(float(data[key])):
 			return "%s must be an integer." % key
 	if int(data["agent_count"]) < 1 or int(data["agent_count"]) > 400:
-		return "agent_count must be 1–24 (available Phase 1 sidewalk positions)."
+		return "agent_count must be 1–400 (generated sidewalk positions)."
 	if int(data["authority_count"]) < 0 or int(data["authority_count"]) > int(data["agent_count"]):
 		return "authority_count must be between zero and agent_count."
 	for key in ["speed_range", "trait_range"]:
@@ -58,10 +58,7 @@ static func validate_settings(data: Dictionary) -> String:
 			return "Shelter position must contain finite numbers."
 		if not Rect2(Vector2.ZERO, CityMap.MAP_SIZE).has_point(Vector2(location[0], location[1])):
 			return "Shelter position must lie inside the city map."
-		var position := Vector2(location[0], location[1])
-		var road_distance := (position - (position / 180).round() * 180).abs()
-		if minf(road_distance.x, road_distance.y) > 30:
-			return "Shelter positions must be on a road or adjacent sidewalk (within 30 units)."
+		# Procedural generation replaces input positions with reserved, connected sites.
 		if not shelter.get("operational") is bool:
 			return "Shelter operational must be true or false."
 		for key in ["known_risk", "popularity", "official_support", "resource_score", "information_confidence", "public_existence_probability"]:

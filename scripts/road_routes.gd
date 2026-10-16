@@ -5,20 +5,10 @@ const CityMap = preload("res://scripts/city_map.gd")
 
 
 static func intersection(point: Vector2) -> Vector2:
-	return (point / CityMap.ROAD_SPACING).round() * CityMap.ROAD_SPACING
-
+	return CityMap.nearest_lane_point(point)
 
 static func plan(start: Vector2, destination: Vector2) -> PackedVector2Array:
-	var start_junction := intersection(start)
-	var end_junction := intersection(destination)
-	var candidates := [start, Vector2(start_junction.x, start.y), start_junction,
-		Vector2(end_junction.x, start_junction.y), end_junction,
-		Vector2(destination.x, end_junction.y), destination]
-	var route := PackedVector2Array()
-	for point in candidates:
-		if route.is_empty() or not route[-1].is_equal_approx(point):
-			route.append(point)
-	return route
+	return CityMap.route(start, destination)
 
 
 static func length(route: PackedVector2Array) -> float:

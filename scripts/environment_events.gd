@@ -22,7 +22,7 @@ static func schedule(seed_value: int, shelters: Array, delay: float, config: Dic
 				if shelter["id"] == target_id:
 					location = shelter["position"]
 		else:
-			location = Vector2(rng.randi_range(3,7)*180, rng.randi_range(2,4)*180)
+			location = preload("res://scripts/city_map.gd").nearest_lane_point(Vector2(rng.randi_range(3,7)*180, rng.randi_range(2,4)*180))
 		result.append({"event_id": "E%02d" % (result.size()+1), "event_type": type,
 			"target_id": target_id, "target_location": location,
 			"scheduled_time": rng.randf_range(delay*config["event_window_fraction"][0], delay*config["event_window_fraction"][1]),

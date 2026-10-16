@@ -89,7 +89,7 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 	if not preset_error.is_empty(): return _fail(preset_error)
 	for key in ["max_concurrent_requests", "queue_limit", "per_model_concurrency"]:
 		var bound: Variant = ai_config.get(key, 128 if key == "queue_limit" else 1)
-		if not (bound is int or bound is float) or not is_finite(float(bound)) or bound != floorf(bound) or bound < 1 or bound > (512 if key == "queue_limit" else 8):
+		if not (bound is int or bound is float) or not is_finite(float(bound)) or bound != floorf(bound) or bound < 1 or bound > (512 if key == "queue_limit" else 120):
 			return _fail("Invalid AI " + key)
 	var model_weights: Variant = ai_config.get("model_weights", [])
 	if not model_weights is Array or (not model_weights.is_empty() and model_weights.size() != 3):
@@ -198,6 +198,10 @@ func initialize_run() -> void:
 	running = false
 	phase = "PREPARATION"
 	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear.get("map_scale",2.5))
+	CityMap.generate(seed_value)
+	for definition in settings["shelters"]:
+		var site: Vector2 = CityMap.sites[definition["id"]]
+		definition["position"] = [site.x, site.y]
 	points_of_interest = CityMap.points_of_interest()
 	structures.clear()
 	world_objects.clear()
@@ -598,6 +602,7 @@ func get_totals() -> Dictionary:
 
 
 func _trigger_impact() -> void:
+	ai_bridge.invalidate_run()
 	if not alarm_is_real:
 		return
 	phase = "IMPACT"
@@ -664,6 +669,8 @@ func log_event(category: String, message: String, visibility: String = "public")
 	var entry := {"time": elapsed_seconds, "category": category, "message": message, "visibility": visibility}
 	events.append(entry)
 	event_logged.emit(entry)
+	if ai_bridge != null:
+		ai_bridge.publish_event("shelter.events" if category in ["SHELTER", "ADMITTED", "REJECTED"] else "world.events", entry)
 
 func set_impact(point: Vector2) -> bool:
 	if phase != "PREPARATION" or not point.is_finite(): return false

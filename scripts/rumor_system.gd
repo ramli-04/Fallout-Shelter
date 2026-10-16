@@ -118,6 +118,7 @@ static func exchange(manager: Node) -> void:
 			var reaction := receive(recipient, chosen, speaker, time, config)
 			if reaction != "duplicate":
 				contacted = true
+				manager.ai_bridge.publish_event("agent.communications", {"speaker": speaker["id"], "recipients": [recipient["id"]], "rumor_id": chosen["rumor_id"], "claim": chosen["claim"], "reaction": reaction}, speaker["id"])
 				manager.log_event("RUMOR", "%s %s '%s' from %s." % [recipient["id"], reaction, chosen["claim"], speaker["id"]])
 		if contacted:
 			speaker["shared_ids"][chosen["rumor_id"]] = true

@@ -1,18 +1,18 @@
 extends RefCounted
 ## Independent seeded streams keep model assignment unrelated to role.
-const MODELS := ["qwen2.5:0.5b", "llama3.2:1b", "qwen2.5:1.5b"]
-const PRESETS := {"30": [18, 9, 3], "120": [72, 36, 12]}
+const MODELS := ["A", "B", "C"]
+const PRESETS := {"30": [10, 10, 10], "120": [40, 40, 40]}
 
 static func apply(settings: Dictionary, config: Dictionary) -> String:
 	var preset: String = str(config.get("experiment_preset", "legacy"))
 	if preset == "legacy": return ""
-	var population: String = preset.trim_prefix("rules_")
+	var population: String = "30" if preset in ["A", "B", "C", "D"] else preset.trim_prefix("rules_")
 	if not PRESETS.has(population): return "Unknown experiment preset"
 	if population == "120" and not config.get("enable_120", false):
 		return "120-agent preset requires enable_120 after reviewing the 30-agent benchmark"
 	settings["agent_count"] = int(population)
 	settings["authority_count"] = 4
-	config["enabled"] = bool(config.get("enabled", true)) and not preset.begins_with("rules_")
+	config["enabled"] = bool(config.get("enabled", true)) and not preset.begins_with("rules_") and preset != "A"
 	config["llm_agent_count"] = 0 if not config["enabled"] else int(population)
 	return ""
 
@@ -42,6 +42,8 @@ static func assignments(count: int, seed_value: int, config: Dictionary) -> Arra
 		for tier in range(3):
 			for _i in range(int(quotas[tier])): result.append(MODELS[tier])
 		shuffle(result, rng)
+	if config.get("experiment_preset", "") == "B":
+		result.fill("B")
 	return result
 
 static func roles(count: int, authorities: int, seed_value: int) -> Array:

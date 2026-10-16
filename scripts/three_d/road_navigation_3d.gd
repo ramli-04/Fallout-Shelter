@@ -2,7 +2,7 @@ extends NavigationRegion3D
 ## Connected non-overlapping road/sidewalk polygons, with buildings excluded geometrically.
 ## Existing fixed-clock routes remain authoritative: nav queries validate their 3D waypoints.
 const Coordinates = preload("res://scripts/three_d/world_coordinates.gd")
-const HALF_WIDTH := 3.2
+const HALF_WIDTH := 4.0
 var walkable_rects: Array[Rect2] = []
 
 func _ready() -> void:
@@ -11,12 +11,14 @@ func _ready() -> void:
 func create_mesh() -> NavigationMesh:
 	var x_cuts: Array[float] = []
 	var z_cuts: Array[float] = []
-	for x in range(int(preload("res://scripts/city_map.gd").MAP_SIZE.x/180)+1):
-		x_cuts.append(x*18.0-HALF_WIDTH)
-		x_cuts.append(x*18.0+HALF_WIDTH)
-	for z in range(int(preload("res://scripts/city_map.gd").MAP_SIZE.y/180)+1):
-		z_cuts.append(z*18.0-HALF_WIDTH)
-		z_cuts.append(z*18.0+HALF_WIDTH)
+	var map = preload("res://scripts/city_map.gd")
+	map.ensure()
+	for x in map.x_cuts:
+		x_cuts.append(x*0.1-HALF_WIDTH)
+		x_cuts.append(x*0.1+HALF_WIDTH)
+	for z in map.y_cuts:
+		z_cuts.append(z*0.1-HALF_WIDTH)
+		z_cuts.append(z*0.1+HALF_WIDTH)
 	var vertices := PackedVector3Array()
 	var polygons: Array[PackedInt32Array] = []
 	var vertex_ids := {}
@@ -31,7 +33,7 @@ func create_mesh() -> NavigationMesh:
 			for corner in [Vector2i(i,j), Vector2i(i,j+1), Vector2i(i+1,j+1), Vector2i(i+1,j)]:
 				if not vertex_ids.has(corner):
 					vertex_ids[corner] = vertices.size()
-					vertices.append(Vector3(x_cuts[corner.x], Coordinates.FLOOR_Y, z_cuts[corner.y]))
+					vertices.append(Coordinates.to_world(Vector2(x_cuts[corner.x],z_cuts[corner.y])/0.1))
 				polygon.append(vertex_ids[corner])
 			polygons.append(polygon)
 	var mesh := NavigationMesh.new()
@@ -53,10 +55,10 @@ func show_debug_surface() -> void:
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for rect in walkable_rects:
-		var a := Vector3(rect.position.x,Coordinates.FLOOR_Y+0.045,rect.position.y)
-		var b := Vector3(rect.position.x,Coordinates.FLOOR_Y+0.045,rect.end.y)
-		var c := Vector3(rect.end.x,Coordinates.FLOOR_Y+0.045,rect.end.y)
-		var d := Vector3(rect.end.x,Coordinates.FLOOR_Y+0.045,rect.position.y)
+		var a := Coordinates.to_world(rect.position/0.1,Coordinates.FLOOR_Y+0.045)
+		var b := Coordinates.to_world(Vector2(rect.position.x,rect.end.y)/0.1,Coordinates.FLOOR_Y+0.045)
+		var c := Coordinates.to_world(rect.end/0.1,Coordinates.FLOOR_Y+0.045)
+		var d := Coordinates.to_world(Vector2(rect.end.x,rect.position.y)/0.1,Coordinates.FLOOR_Y+0.045)
 		for vertex in [a,b,c,a,c,d]: surface.add_vertex(vertex)
 	var node := MeshInstance3D.new()
 	node.mesh = surface.commit()

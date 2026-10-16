@@ -3,3 +3,5 @@
 !ai_service/*.py
 !ai_service/requirements.txt
 !Dockerfile
+!config/
+!config/llm_groups.json

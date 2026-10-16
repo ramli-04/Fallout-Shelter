@@ -30,9 +30,9 @@ func run() -> void:
 		app.intro_panel.hide()
 		app._show_drawer("settings")
 	var deadline := Time.get_ticks_msec() + 15000
-	while manager.ai_config["enabled"] and manager.ai_bridge.status != "CONNECTED" and Time.get_ticks_msec() < deadline:
+	while manager.ai_config["enabled"] and manager.ai_bridge.status not in ["CONNECTED", "DEGRADED"] and Time.get_ticks_msec() < deadline:
 		await process_frame
-	if manager.ai_config["enabled"] and manager.ai_bridge.status != "CONNECTED":
+	if manager.ai_config["enabled"] and manager.ai_bridge.status not in ["CONNECTED", "DEGRADED"]:
 		printerr("Benchmark requires all pool models installed and service connected")
 		quit(1); return
 	manager.launch_nuke()
@@ -42,9 +42,13 @@ func run() -> void:
 	manager.simulation_speed = float(OS.get_environment("ESSAIM_BENCH_SPEED"))
 	var started := Time.get_ticks_msec()
 	var frames := 0
+	var max_frame_seconds := 0.0
+	var previous_frame := Time.get_ticks_usec()
 	var captured := false
 	while manager.phase == "EVACUATION":
 		await process_frame
+		max_frame_seconds = maxf(max_frame_seconds, (Time.get_ticks_usec()-previous_frame)/1e6)
+		previous_frame = Time.get_ticks_usec()
 		frames += 1
 		if render and not captured and Time.get_ticks_msec()-started > 10000:
 			await RenderingServer.frame_post_draw
@@ -53,17 +57,26 @@ func run() -> void:
 	var wall_seconds := (Time.get_ticks_msec()-started)/1000.0
 	manager.ai_bridge.save_logs()
 	var timely := {}
+	var choices := {}
+	var communications := 0
+	for event in manager.events:
+		if event["category"] in ["RUMOR", "RELAY"]: communications += 1
 	var by_model := {}
 	for entry in manager.ai_bridge.records:
 		if entry.get("success", false):
 			timely[entry["agent_id"]] = true
 	for agent in manager.agents:
+		var destination: String = agent["objective"]
+		if not destination.is_empty(): choices[destination] = int(choices.get(destination, 0)) + 1
 		var tier: String = agent["model_tier"]
 		if not by_model.has(tier): by_model[tier] = {"assigned": 0, "timely_agents": 0}
 		by_model[tier]["assigned"] += 1
 		by_model[tier]["timely_agents"] += 1 if timely.has(agent["id"]) else 0
 	var result := {"preset": preset, "seed": manager.seed_value, "headless": not render,
 		"average_process_fps": frames/maxf(wall_seconds, 0.001),
+		"maximum_process_frame_seconds": max_frame_seconds,
+		"shelter_selection": choices, "communication_receipts": communications,
+		"consensus_largest_destination_fraction": float(choices.values().max())/manager.agents.size() if not choices.is_empty() else 0.0,
 		"simulation_speed": manager.simulation_speed, "impact_seconds": manager.countdown_seconds,
 		"wall_seconds": wall_seconds, "population": manager.agents.size(),
 		"timely_agents": timely.size(), "per_model": by_model,

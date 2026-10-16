@@ -62,6 +62,8 @@ var windowed_position := Vector2i.ZERO
 var ai_status_label: Label
 var ai_performance_label: Label
 var experiment_picker: OptionButton
+var ai_group_filter := "ALL"
+var ai_agent_filter := "ALL"
 
 
 func _ready() -> void:
@@ -334,9 +336,31 @@ func _build_settings(parent: VBoxContainer) -> void:
 	ai_performance_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ai_performance_label.custom_minimum_size.x = 275
 	column.add_child(ai_performance_label)
+	var group_filter := OptionButton.new()
+	for group in ["ALL", "A", "B", "C"]: group_filter.add_item(group)
+	column.add_child(group_filter)
+	group_filter.item_selected.connect(func(index: int): ai_group_filter = group_filter.get_item_text(index))
+	var individual := LineEdit.new()
+	individual.placeholder_text = "Agent ID filter (empty = all)"
+	column.add_child(individual)
+	individual.text_changed.connect(func(value: String): ai_agent_filter = "ALL" if value.is_empty() else value)
+	var assign_agent := LineEdit.new()
+	assign_agent.placeholder_text = "Agent ID to assign before run"
+	column.add_child(assign_agent)
+	var assign_group := OptionButton.new()
+	for group in ["A", "B", "C"]: assign_group.add_item(group)
+	column.add_child(assign_group)
+	var assign_button := Button.new()
+	assign_button.text = "Assign model group"
+	column.add_child(assign_button)
+	assign_button.pressed.connect(func():
+		if manager.phase != "PREPARATION": return
+		for agent in manager.agents:
+			if agent["id"] == assign_agent.text:
+				agent["model_tier"] = assign_group.get_item_text(assign_group.selected))
 	var preset_picker := OptionButton.new()
 	experiment_picker = preset_picker
-	for preset in ["30", "120", "rules_30", "rules_120"]: preset_picker.add_item(preset)
+	for preset in ["A", "B", "C", "D", "30", "120", "rules_30", "rules_120"]: preset_picker.add_item(preset)
 	preset_picker.tooltip_text = "Experiment preset; changing it resets the scenario. 120 requires benchmark opt-in in ai_config.json."
 	column.add_child(preset_picker)
 	preset_picker.item_selected.connect(func(index: int):
@@ -350,9 +374,20 @@ func _build_settings(parent: VBoxContainer) -> void:
 			for i in range(preset_picker.item_count):
 				if preset_picker.get_item_text(i) == str(manager.ai_config.get("experiment_preset", "30")): preset_picker.select(i)
 			return
-		manager.ai_config = config
-		manager.settings = settings
-		manager.initialize_run())
+		var request := HTTPRequest.new()
+		request.use_threads = true
+		request.timeout = 4
+		add_child(request)
+		request.request_completed.connect(func(_result, code, _headers, _body):
+			request.queue_free()
+			if code == 200 or not config["enabled"]:
+				manager.ai_config = config
+				manager.settings = settings
+				manager.initialize_run()
+			else:
+				manager.log_event("AI", "Could not configure experiment; backend unavailable or busy."))
+		if request.request(config["service_url"] + "/experiments/" + config["experiment_preset"], ["Content-Type: application/json"], HTTPClient.METHOD_POST, "{}") != OK:
+			request.queue_free())
 	column.add_child(Dashboard.label("SCENARIO SEED", 16, Dashboard.ACCENT))
 	var hint := Dashboard.label("The same seed recreates the same scenario. Applying a seed resets the simulation.", 14, Dashboard.MUTED)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -509,7 +544,7 @@ func _process(delta: float) -> void:
 	if manager != null and manager.ai_bridge != null and ai_status_label != null:
 		ai_status_label.text = "AI / %s / %d agents / queue %d / active %d" % [manager.ai_bridge.status, int(manager.ai_config.get("llm_agent_count", 0)), manager.ai_bridge.decision_queue.size(), manager.ai_bridge.pending.size()]
 		ai_status_label.tooltip_text = manager.ai_bridge.dashboard_text()
-		if ai_performance_label != null: ai_performance_label.text = manager.ai_bridge.dashboard_text()
+		if ai_performance_label != null: ai_performance_label.text = manager.ai_bridge.dashboard_text(ai_group_filter, ai_agent_filter)
 	ui_refresh_time += delta
 	if ui_dirty and ui_refresh_time >= 0.1:
 		ui_refresh_time = 0

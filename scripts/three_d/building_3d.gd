@@ -9,64 +9,95 @@ var height := 0.0
 
 func configure(rect: Rect2, index: int) -> void:
 	footprint = rect
-	var scale_value := preload("res://scripts/three_d/world_coordinates.gd").SCALE
-	var center: Vector2 = rect.get_center() * scale_value
-	position = Vector3(center.x, 0.18, center.y)
-	var district := int(center.x / (preload("res://scripts/city_map.gd").MAP_SIZE.x*0.1/3))
-	var palettes := [Color("d99c77"), Color("a5c3c3"), Color("839aaa")]
-	var color: Color = palettes[mini(district, 2)].lightened((index%3)*0.055)
-	height = 3.0 + (index%4)*1.35 if district == 0 else 4.2 + (index%5)*1.6 if district == 1 else 3.0 + (index%3)*1.0
-	for poi in preload("res://scripts/city_map.gd").points_of_interest():
+	var map = preload("res://scripts/city_map.gd")
+	var coordinates = preload("res://scripts/three_d/world_coordinates.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = map.map_seed + index*173 + 701
+	position = coordinates.to_world(rect.get_center())
+	var palette := [Color("c8b99e"),Color("d2a483"),Color("929f9f"),Color("8a9ea8"),Color("b6b4a7"),Color("b18d78")]
+	var color: Color = palette[rng.randi_range(0,palette.size()-1)]
+	var downtown := 1.0-clampf(rect.get_center().distance_to(map.MAP_SIZE*Vector2(0.69,0.73))/(map.MAP_SIZE.x*0.5),0,1)
+	height = rng.randf_range(7,20) + downtown*rng.randf_range(8,44)
+	var style := rng.randi_range(0,4)
+	for poi in map.points_of_interest():
 		if poi["footprint"] == rect:
 			height = 3.5 if poi["kind"] == "School" else 4.5
-			var service_colors := {"Police Station":"9cbdcd","Fire Station":"c66e60","Medical Station":"e6ecda","Bank":"b1bda6","School":"d9b578"}
-			color = Color(service_colors[poi["kind"]])
-	var size := Vector3(rect.size.x*scale_value, height, rect.size.y*scale_value)
-	Geometry.box(self, size, Vector3(0, height/2, 0), color)
-	Geometry.box(self, Vector3(size.x+0.3, 0.22, size.z+0.3), Vector3(0, height+0.08, 0), Color("465b63"))
-	Geometry.box(self, Vector3(size.x+0.2, 0.25, size.z+0.2), Vector3(0, 0.12, 0), Color("718784"))
-	Geometry.collider(self, size, Vector3(0, height/2, 0))
-	# One instanced draw per building for all repeated facade windows.
+			style = 2
+			var colors := {"Police Station":"9cbdcd","Fire Station":"c66e60","Medical Station":"e6ecda","Bank":"b1bda6","School":"d9b578"}
+			color = Color(colors[poi["kind"]])
+	var width := rect.size.x*0.1
+	var depth := rect.size.y*0.1
+	Geometry.box(self,Vector3(width,2.2,depth),Vector3(0,-0.9,0),Color("7e8175"))
+	match style:
+		0: # L-shaped apartments with a real courtyard recess.
+			_wing(Vector3(width*0.43,height,depth),Vector3(-width*0.285,0,0),color)
+			_wing(Vector3(width*0.57,height*0.65,depth*0.38),Vector3(width*0.215,0,depth*0.31),color.lightened(0.06))
+		1: # Tall inset tower on a broad commercial podium.
+			_wing(Vector3(width,height*0.20,depth),Vector3.ZERO,color)
+			_wing(Vector3(width*0.64,height*0.80,depth*0.64),Vector3(0,height*0.20,0),color.darkened(0.08))
+		2: # U-shaped civic / courtyard block.
+			_wing(Vector3(width,height,depth*0.32),Vector3(0,0,-depth*0.34),color)
+			for side in [-1,1]:
+				_wing(Vector3(width*0.27,height*0.85,depth*0.68),Vector3(side*width*0.365,0,depth*0.16),color)
+		3: # Long mixed-height residential slab.
+			_wing(Vector3(width*0.62,height,depth),Vector3(-width*0.19,0,0),color)
+			_wing(Vector3(width*0.38,height*0.6,depth*0.78),Vector3(width*0.31,0,depth*0.11),color.lightened(0.08))
+		_: # Stepped high-rise with roof terraces.
+			_wing(Vector3(width,height*0.4,depth),Vector3.ZERO,color)
+			_wing(Vector3(width*0.78,height*0.35,depth*0.72),Vector3(-width*0.08,height*0.4,0),color.lightened(0.04))
+			_wing(Vector3(width*0.50,height*0.25,depth*0.48),Vector3(-width*0.16,height*0.75,0),color.darkened(0.08))
+	Geometry.box(self,Vector3(2.2,1.2,2.8),Vector3(-width*0.2,height+0.6,0),Color("6e7d7c"))
+
+func _wing(size: Vector3, base: Vector3, color: Color) -> void:
+	var body := Geometry.box(self,size,base+Vector3(0,size.y/2,0),color)
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	Geometry.box(self,Vector3(size.x+0.25,0.28,size.z+0.25),base+Vector3(0,size.y,0),Color("647471"))
+	Geometry.collider(self,size,base+Vector3(0,size.y/2,0))
 	var windows := MultiMeshInstance3D.new()
-	var multimesh := MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	var instances := MultiMesh.new()
+	instances.transform_format = MultiMesh.TRANSFORM_3D
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(1.25, 0.8, 0.06)
-	multimesh.mesh = mesh
-	var floors := maxi(1, int(height/2))
-	multimesh.instance_count = floors*12
-	var window_index := 0
-	for floor_index in range(floors):
-		for side in range(4):
-			for offset in [-2.8, 0.0, 2.8]:
-				var basis := Basis(Vector3.UP, side*PI/2)
-				var point := basis * Vector3(offset, 1.1 + floor_index*1.8, size.z/2+0.04)
-				multimesh.set_instance_transform(window_index, Transform3D(basis, point))
-				window_index += 1
-	windows.visibility_range_end = 170.0
-	windows.multimesh = multimesh
-	windows.material_override = Geometry.material(Color("e1edda"))
+	mesh.size = Vector3(1.1,1.0,0.06)
+	instances.mesh = mesh
+	var transforms: Array[Transform3D] = []
+	var floors := maxi(1,int((size.y-0.5)/2.6))
+	for side in range(4):
+		var frontage := size.x if side%2 == 0 else size.z
+		var half_depth := (size.z if side%2 == 0 else size.x)*0.5
+		var columns := maxi(1,int((frontage-1)/2.8))
+		var basis := Basis(Vector3.UP,side*PI/2)
+		for floor_index in range(floors):
+			for column in range(columns):
+				var offset := (column-(columns-1)*0.5)*2.8
+				var point := base + basis*Vector3(offset,1.5+floor_index*2.6,half_depth+0.04)
+				transforms.append(Transform3D(basis,point))
+	instances.instance_count = transforms.size()
+	for i in range(transforms.size()): instances.set_instance_transform(i,transforms[i])
+	windows.multimesh = instances
+	windows.material_override = Geometry.material(Color("a8c8cf"))
+	windows.visibility_range_end = 700
 	add_child(windows)
 
 func add_poi(kind: String) -> void:
+	var front := footprint.size.y*0.05+0.1
 	var color := Color("618eae") if kind == "Police Station" else Color("b95450") if kind == "Fire Station" else Color("e4eadc") if kind == "Medical Station" else Color("b4b891")
-	Geometry.box(self,Vector3(9.3,1.0,0.2),Vector3(0,2.6,4.75),color)
+	Geometry.box(self,Vector3(9.3,1.0,0.2),Vector3(0,2.6,front),color)
 	Geometry.label(self,kind.to_upper(),Vector3(0,height+1.2,0),color,24,0.025)
-	Geometry.box(self,Vector3(2.5,2.1,0.1),Vector3(0,1.1,4.78),Color("88c9d5"))
+	Geometry.box(self,Vector3(2.5,2.1,0.1),Vector3(0,1.1,front),Color("88c9d5"))
 	if kind in ["Police Station","Fire Station","Medical Station"]:
 		if kind == "Medical Station":
-			Geometry.box(self,Vector3(0.25,1.2,0.15),Vector3(3,2.6,4.9),Color("bd4c47"))
-			Geometry.box(self,Vector3(1.2,0.25,0.15),Vector3(3,2.6,4.9),Color("bd4c47"))
+			Geometry.box(self,Vector3(0.25,1.2,0.15),Vector3(3,2.6,front+0.15),Color("bd4c47"))
+			Geometry.box(self,Vector3(1.2,0.25,0.15),Vector3(3,2.6,front+0.15),Color("bd4c47"))
 		var vehicle_color := Color("c74f49") if kind == "Fire Station" else Color("e8e9de")
 		for x in [-2.0,2.0]:
 			if kind == "Fire Station":
-				Geometry.box(self,Vector3(2.7,2.5,0.2),Vector3(x,1.25,4.78),Color("545e60"))
-			exposed_objects.append(Geometry.box(self,Vector3(1.4,0.8,2.5),Vector3(x,0.55,5.8),vehicle_color))
-			exposed_objects.append(Geometry.box(self,Vector3(0.8,0.25,0.35),Vector3(x,1.05,5.8),Color("548dda")))
+				Geometry.box(self,Vector3(2.7,2.5,0.2),Vector3(x,1.25,front),Color("545e60"))
+			exposed_objects.append(Geometry.box(self,Vector3(1.4,0.8,2.5),Vector3(x,0.55,front+1.2),vehicle_color))
+			exposed_objects.append(Geometry.box(self,Vector3(0.8,0.25,0.35),Vector3(x,1.05,front+1.2),Color("548dda")))
 	elif kind == "Bank":
 		for x in [-3.0,3.0]:
-			Geometry.cylinder(self,0.4,3,Vector3(x,1.5,4.6),Color("d2d8c6"))
-		Geometry.box(self,Vector3(0.3,0.3,0.5),Vector3(1.8,2.9,4.85),Color("414b4c"))
+			Geometry.cylinder(self,0.4,3,Vector3(x,1.5,front),Color("d2d8c6"))
+		Geometry.box(self,Vector3(0.3,0.3,0.5),Vector3(1.8,2.9,front+0.1),Color("414b4c"))
 	elif kind == "School":
 		Geometry.box(self,Vector3(7,0.12,2.0),Vector3(0,0.15,6),Color("d8b879"))
 		for side in [-1,1]:

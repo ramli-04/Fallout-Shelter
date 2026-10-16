@@ -79,4 +79,6 @@ def decision(text, obs):
         raise ValueError('Agent not observed nearby')
     if data['action'] == 'COMMUNICATE' and not data['message'].strip():
         raise ValueError('Empty communication')
+    if data['action'] == 'COMMUNICATE' and data['target'] and data['target'] not in [a['id'] for a in obs['nearby_agents']]:
+        raise ValueError('Communication recipient not observed nearby')
     return data

@@ -1,0 +1,5 @@
+{
+  "A": {"provider": "ollama", "model": "qwen2.5:0.5b", "url": "${OLLAMA_URL}", "concurrency": 2, "context": 2048, "max_tokens": 128},
+  "B": {"provider": "ollama", "model": "llama3.2:1b", "url": "${OLLAMA_URL}", "concurrency": 2, "context": 2048, "max_tokens": 128},
+  "C": {"provider": "gemini", "model": "${GEMINI_MODEL}", "url": "https://generativelanguage.googleapis.com/v1beta", "key_env": "GEMINI_API_KEY", "concurrency": 4, "request_budget": 100, "token_budget": 100000, "max_tokens": 128}
+}

@@ -43,10 +43,10 @@ static func initialize(manager: Node) -> void:
 	var points: Array[Dictionary] = []
 	for poi in manager.points_of_interest:
 		if poi["kind"] in ["Police Station","Fire Station","School"]:
-			points.append({"position": poi["footprint"].get_center(),"mount": "ROOFTOP","site": poi["kind"],"base_height": 3.5 if poi["kind"] == "School" else 4.5})
+			points.append({"position": poi.get("roof_position",poi["footprint"].get_center()),"mount": "ROOFTOP","site": poi["kind"],"base_height": 3.5 if poi["kind"] == "School" else 4.5})
 	for x in range(180,int(manager.CityMap.MAP_SIZE.x),900):
 		for y in range(180,int(manager.CityMap.MAP_SIZE.y),900):
-			points.append({"position": Vector2(x+20,y+20),"mount": "POLE","site": "Intersection / dedicated tower","base_height": 0.0})
+			points.append({"position": manager.CityMap.nearest_lane_point(Vector2(x+20,y+20))+Vector2(20,20),"mount": "POLE","site": "Street / dedicated tower","base_height": 0.0})
 	for i in range(points.size()):
 		var data: Dictionary = points[i]
 		data.merge({"id": "WS%02d" % (i+1),"state": "INACTIVE","enabled": true,"mode": "CIVIL_DEFENSE_WAIL","radius_world": manager.warning_config["sound_radius_world"],"volume_db": manager.warning_config["tower_volume_db"],"pitch": manager.warning_config["tower_pitch"],"mechanical_rotation": true,"start_offset": 0.0 if i == 0 else fmod(i*0.731+manager.seed_value*0.013,manager.warning_config["start_offset_seconds"]+0.001),"active_since": 0.0,"survived": false,"director_manual": false})

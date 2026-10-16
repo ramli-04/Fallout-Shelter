@@ -44,8 +44,9 @@ func rebuild() -> void:
 		node.configure(record)
 		if record["mount"] == "ROOFTOP":
 			for building in view.city.buildings:
-				if building.footprint.get_center() == record["position"]:
+				if building.footprint.has_point(record["position"]):
 					node.roof_building = building
+					node.position.y = building.position.y
 					break
 		add_child(node)
 		node.coverage.visible = show_coverage

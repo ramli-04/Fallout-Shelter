@@ -204,8 +204,9 @@ func _gui_input(event: InputEvent) -> void:
 					if impact_selection_enabled and manager != null and manager.phase == "PREPARATION":
 						var origin := camera.project_ray_origin(event.position)
 						var direction := camera.project_ray_normal(event.position)
-						var hit: Variant = Plane(Vector3.UP,Coordinates.FLOOR_Y).intersects_ray(origin,direction)
-						if hit != null: impact_selected.emit(Coordinates.to_simulation(hit))
+						var query := PhysicsRayQueryParameters3D.create(origin,origin+direction*4000,8)
+						var hit := world.get_world_3d().direct_space_state.intersect_ray(query)
+						if not hit.is_empty(): impact_selected.emit(Coordinates.to_simulation(hit["position"]))
 					else:
 						select_at(event.position)
 					if event.double_click: focus_selected()
