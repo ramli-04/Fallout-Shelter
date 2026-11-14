@@ -1,0 +1,8 @@
+[gd_resource type="AtlasTexture" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/reference_city/roads-ground.png" id="1_11dc0"]
+
+[resource]
+atlas = ExtResource("1_11dc0")
+region = Rect2(0, 1038, 216, 181)
+filter_clip = true

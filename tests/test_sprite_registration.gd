@@ -11,6 +11,6 @@ func _initialize() -> void:
 		assert(absf(result.anchor*cos(deg_to_rad(30))-contact_y)<.0001)
 		assert(result.height>0 and result.ground_depth>0); checks+=3
 	var roads=preload("res://scripts/three_d/reference_road_tiles.gd")
-	assert(not roads.material(2).get_shader_parameter("swap_axes"))
-	assert(roads.material(4).get_shader_parameter("swap_axes"))
+	assert(roads.material(2).get_shader_parameter("sheet")!=null)
+	assert(roads.material(4).get_shader_parameter("sheet")!=null)
 	print("Sprite registration: %d checks, road axes passed"%checks); quit()

@@ -1,0 +1,830 @@
+{
+  "atlas": "res://assets/reference_city/roads-ground.png",
+  "source_size": [
+    1254,
+    1254
+  ],
+  "roads": {
+    "straight_2lane": {
+      "category": "Roads",
+      "region": [
+        18,
+        57,
+        222,
+        215
+      ],
+      "top": [
+        111,
+        68
+      ],
+      "cross": [
+        -83,
+        82
+      ],
+      "along": [
+        122,
+        126
+      ]
+    },
+    "straight_median": {
+      "category": "Roads",
+      "region": [
+        200,
+        62,
+        201,
+        213
+      ],
+      "top": [
+        276,
+        74
+      ],
+      "cross": [
+        -70,
+        86
+      ],
+      "along": [
+        112,
+        121
+      ]
+    },
+    "straight_4lane": {
+      "category": "Roads",
+      "region": [
+        358,
+        70,
+        188,
+        202
+      ],
+      "top": [
+        441,
+        82
+      ],
+      "cross": [
+        -75,
+        80
+      ],
+      "along": [
+        101,
+        119
+      ]
+    },
+    "corner_NE": {
+      "category": "Roads",
+      "region": [
+        544,
+        52,
+        152,
+        131
+      ],
+      "top": [
+        620,
+        57
+      ],
+      "cross": [
+        -69,
+        62
+      ],
+      "along": [
+        68,
+        62
+      ]
+    },
+    "corner_NW": {
+      "category": "Roads",
+      "region": [
+        693,
+        57,
+        152,
+        131
+      ],
+      "top": [
+        769,
+        62
+      ],
+      "cross": [
+        -69,
+        62
+      ],
+      "along": [
+        68,
+        62
+      ]
+    },
+    "corner_SE": {
+      "category": "Roads",
+      "region": [
+        544,
+        192,
+        152,
+        131
+      ],
+      "top": [
+        620,
+        197
+      ],
+      "cross": [
+        -69,
+        62
+      ],
+      "along": [
+        68,
+        62
+      ]
+    },
+    "corner_SW": {
+      "category": "Roads",
+      "region": [
+        697,
+        194,
+        152,
+        131
+      ],
+      "top": [
+        773,
+        199
+      ],
+      "cross": [
+        -69,
+        62
+      ],
+      "along": [
+        68,
+        62
+      ]
+    },
+    "junction_T_N": {
+      "category": "Roads",
+      "region": [
+        856,
+        47,
+        200,
+        160
+      ],
+      "top": [
+        956,
+        52
+      ],
+      "cross": [
+        -90,
+        70
+      ],
+      "along": [
+        82,
+        74
+      ]
+    },
+    "junction_T_E": {
+      "category": "Roads",
+      "region": [
+        1068,
+        55,
+        186,
+        160
+      ],
+      "top": [
+        1168,
+        60
+      ],
+      "cross": [
+        -90,
+        70
+      ],
+      "along": [
+        82,
+        74
+      ]
+    },
+    "junction_T_S": {
+      "category": "Roads",
+      "region": [
+        850,
+        196,
+        200,
+        160
+      ],
+      "top": [
+        950,
+        201
+      ],
+      "cross": [
+        -90,
+        70
+      ],
+      "along": [
+        82,
+        74
+      ]
+    },
+    "junction_T_W": {
+      "category": "Roads",
+      "region": [
+        1070,
+        206,
+        184,
+        160
+      ],
+      "top": [
+        1170,
+        211
+      ],
+      "cross": [
+        -90,
+        70
+      ],
+      "along": [
+        82,
+        74
+      ]
+    },
+    "intersection_4way": {
+      "category": "Roads",
+      "region": [
+        10,
+        375,
+        200,
+        182
+      ],
+      "top": [
+        110,
+        389
+      ],
+      "cross": [
+        -90,
+        74
+      ],
+      "along": [
+        88,
+        74
+      ]
+    },
+    "intersection_alt_1": {
+      "category": "Roads",
+      "region": [
+        182,
+        375,
+        200,
+        182
+      ],
+      "top": [
+        282,
+        389
+      ],
+      "cross": [
+        -90,
+        74
+      ],
+      "along": [
+        88,
+        74
+      ]
+    },
+    "intersection_alt_2": {
+      "category": "Roads",
+      "region": [
+        346,
+        375,
+        200,
+        182
+      ],
+      "top": [
+        446,
+        389
+      ],
+      "cross": [
+        -90,
+        74
+      ],
+      "along": [
+        88,
+        74
+      ]
+    },
+    "intersection_alt_3": {
+      "category": "Roads",
+      "region": [
+        512,
+        375,
+        200,
+        182
+      ],
+      "top": [
+        612,
+        389
+      ],
+      "cross": [
+        -90,
+        74
+      ],
+      "along": [
+        88,
+        74
+      ]
+    },
+    "roundabout_garden": {
+      "category": "Roads",
+      "region": [
+        705,
+        380,
+        188,
+        207
+      ],
+      "top": [
+        799,
+        391
+      ],
+      "cross": [
+        -85,
+        91
+      ],
+      "along": [
+        85,
+        91
+      ]
+    },
+    "roundabout_lawn": {
+      "category": "Roads",
+      "region": [
+        882,
+        380,
+        188,
+        207
+      ],
+      "top": [
+        976,
+        391
+      ],
+      "cross": [
+        -85,
+        91
+      ],
+      "along": [
+        85,
+        91
+      ]
+    },
+    "roundabout_fountain": {
+      "category": "Roads",
+      "region": [
+        1056,
+        380,
+        188,
+        207
+      ],
+      "top": [
+        1150,
+        391
+      ],
+      "cross": [
+        -85,
+        91
+      ],
+      "along": [
+        85,
+        91
+      ]
+    },
+    "dead_end": {
+      "category": "Roads",
+      "region": [
+        9,
+        631,
+        187,
+        194
+      ],
+      "top": [
+        113,
+        646
+      ],
+      "cross": [
+        -91,
+        81
+      ],
+      "along": [
+        76,
+        88
+      ]
+    },
+    "dead_end_crosswalk": {
+      "category": "Roads",
+      "region": [
+        191,
+        633,
+        186,
+        193
+      ],
+      "top": [
+        278,
+        647
+      ],
+      "cross": [
+        -82,
+        79
+      ],
+      "along": [
+        84,
+        89
+      ]
+    },
+    "cul_de_sac": {
+      "category": "Roads",
+      "region": [
+        354,
+        627,
+        188,
+        196
+      ],
+      "top": [
+        443,
+        643
+      ],
+      "cross": [
+        -78,
+        82
+      ],
+      "along": [
+        83,
+        82
+      ]
+    },
+    "crosswalk": {
+      "category": "Roads",
+      "region": [
+        542,
+        632,
+        166,
+        192
+      ],
+      "top": [
+        624,
+        647
+      ],
+      "cross": [
+        -73,
+        75
+      ],
+      "along": [
+        78,
+        86
+      ]
+    },
+    "bus_stop_lane": {
+      "category": "Roads",
+      "region": [
+        702,
+        632,
+        166,
+        192
+      ],
+      "top": [
+        784,
+        647
+      ],
+      "cross": [
+        -73,
+        75
+      ],
+      "along": [
+        78,
+        86
+      ]
+    },
+    "turning_lane": {
+      "category": "Roads",
+      "region": [
+        866,
+        632,
+        166,
+        192
+      ],
+      "top": [
+        948,
+        647
+      ],
+      "cross": [
+        -73,
+        75
+      ],
+      "along": [
+        78,
+        86
+      ]
+    },
+    "cycle_lane": {
+      "category": "Roads",
+      "region": [
+        1015,
+        632,
+        166,
+        192
+      ],
+      "top": [
+        1097,
+        647
+      ],
+      "cross": [
+        -73,
+        75
+      ],
+      "along": [
+        78,
+        86
+      ]
+    },
+    "bus_lane": {
+      "category": "Roads",
+      "region": [
+        1138,
+        632,
+        116,
+        192
+      ],
+      "top": [
+        1220,
+        647
+      ],
+      "cross": [
+        -73,
+        75
+      ],
+      "along": [
+        78,
+        86
+      ]
+    }
+  },
+  "grass": {
+    "ground_00": {
+      "category": "Nature/Grass",
+      "region": [
+        0,
+        879,
+        202,
+        164
+      ],
+      "top": [
+        100,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        80,
+        64
+      ]
+    },
+    "ground_01": {
+      "category": "Nature/Grass",
+      "region": [
+        183,
+        879,
+        202,
+        164
+      ],
+      "top": [
+        284,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        80,
+        64
+      ]
+    },
+    "ground_02": {
+      "category": "Nature/Grass",
+      "region": [
+        361,
+        879,
+        202,
+        164
+      ],
+      "top": [
+        462,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        80,
+        64
+      ]
+    },
+    "ground_03": {
+      "category": "Nature/Grass",
+      "region": [
+        544,
+        879,
+        202,
+        164
+      ],
+      "top": [
+        645,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        80,
+        64
+      ]
+    },
+    "ground_04": {
+      "category": "Nature/Grass",
+      "region": [
+        726,
+        879,
+        202,
+        164
+      ],
+      "top": [
+        827,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        80,
+        64
+      ]
+    },
+    "ground_05": {
+      "category": "Nature/Grass",
+      "region": [
+        909,
+        879,
+        202,
+        164
+      ],
+      "top": [
+        1010,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        80,
+        64
+      ]
+    },
+    "ground_06": {
+      "category": "Nature/Grass",
+      "region": [
+        1081,
+        879,
+        173,
+        164
+      ],
+      "top": [
+        1182,
+        895
+      ],
+      "cross": [
+        -80,
+        64
+      ],
+      "along": [
+        68,
+        64
+      ]
+    },
+    "ground_07": {
+      "category": "Nature/Grass",
+      "region": [
+        0,
+        1038,
+        216,
+        181
+      ],
+      "top": [
+        108,
+        1055
+      ],
+      "cross": [
+        -91,
+        70
+      ],
+      "along": [
+        91,
+        70
+      ]
+    },
+    "ground_08": {
+      "category": "Nature/Grass",
+      "region": [
+        202,
+        1038,
+        216,
+        181
+      ],
+      "top": [
+        310,
+        1055
+      ],
+      "cross": [
+        -91,
+        70
+      ],
+      "along": [
+        91,
+        70
+      ]
+    },
+    "ground_09": {
+      "category": "Nature/Grass",
+      "region": [
+        404,
+        1038,
+        216,
+        181
+      ],
+      "top": [
+        512,
+        1055
+      ],
+      "cross": [
+        -91,
+        70
+      ],
+      "along": [
+        91,
+        70
+      ]
+    },
+    "ground_10": {
+      "category": "Nature/Grass",
+      "region": [
+        606,
+        1038,
+        216,
+        181
+      ],
+      "top": [
+        714,
+        1055
+      ],
+      "cross": [
+        -91,
+        70
+      ],
+      "along": [
+        91,
+        70
+      ]
+    },
+    "ground_11": {
+      "category": "Nature/Grass",
+      "region": [
+        810,
+        1038,
+        216,
+        181
+      ],
+      "top": [
+        918,
+        1055
+      ],
+      "cross": [
+        -91,
+        70
+      ],
+      "along": [
+        91,
+        70
+      ]
+    },
+    "ground_12": {
+      "category": "Nature/Grass",
+      "region": [
+        1016,
+        1038,
+        216,
+        181
+      ],
+      "top": [
+        1124,
+        1055
+      ],
+      "cross": [
+        -91,
+        70
+      ],
+      "along": [
+        91,
+        70
+      ]
+    }
+  }
+}

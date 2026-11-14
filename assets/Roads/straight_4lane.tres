@@ -1,8 +1,8 @@
 [gd_resource type="AtlasTexture" format=3]
 
-[ext_resource type="Texture2D" path="res://assets/reference_city/streets.png" id="1_2rgia"]
+[ext_resource type="Texture2D" path="res://assets/reference_city/roads-ground.png" id="1_2rgia"]
 
 [resource]
 atlas = ExtResource("1_2rgia")
-region = Rect2(184, 648, 161, 100)
+region = Rect2(358, 70, 188, 202)
 filter_clip = true

@@ -46,6 +46,8 @@ static var materials: Dictionary={}
 static var road_materials: Dictionary={}
 
 static func road_material(kind: String,color: Color) -> Material:
+	if kind in ["highway","highway_elevated"] or kind.begins_with("ramp"): return preload("res://scripts/three_d/road_ground_art.gd").plain_asphalt_material()
+	if kind in ["sidewalk","wide_sidewalk","curb"]: return preload("res://scripts/three_d/road_ground_art.gd").paving_material(kind=="wide_sidewalk")
 	if kind not in ["asphalt","sidewalk","wide_sidewalk","curb","highway_elevated"] and not kind.begins_with("ramp"):
 		return preload("res://scripts/three_d/geometry.gd").material(color)
 	if road_materials.has(kind): return road_materials[kind]
