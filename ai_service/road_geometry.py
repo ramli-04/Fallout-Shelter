@@ -52,10 +52,20 @@ def build(groups):
 if __name__=='__main__':
     import sys
     source=Path(sys.argv[1]).read_bytes()
-    digest=hashlib.sha256(b'city61-terrain-v2'+source).hexdigest()
+    digest=hashlib.sha256(b'city-road-art-partitions-v3'+source).hexdigest()
     target=Path(sys.argv[2])
     if not target.exists() or json.loads(target.read_text()).get('hash')!=digest:
         import os
         temporary=target.with_suffix(f'.{os.getpid()}.tmp')
-        temporary.write_text(json.dumps(dict(hash=digest,groups=build(json.loads(source)))),encoding='utf-8')
+        definitions=json.loads(source)
+        groups=build(definitions)
+        art=[]
+        if definitions.get('asphalt',{}).get('art_roads'):
+            from .road_art_layout import partition
+            config=definitions['asphalt']
+            asphalt=unary_union([Polygon(p) for p in config.get('polygons',[])]+[
+                buffer(LineString(r['points']),r['width'],cap_style='flat',join_style='mitre',mitre_limit=2)
+                for r in config.get('paths',[])])
+            art=partition(asphalt,config['art_roads'],config['art_nodes'],config['terrain_cell'],config.get('art_parking',[]))
+        temporary.write_text(json.dumps(dict(hash=digest,groups=groups,art=art)),encoding='utf-8')
         temporary.replace(target)

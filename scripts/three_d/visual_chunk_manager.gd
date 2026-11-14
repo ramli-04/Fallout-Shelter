@@ -249,8 +249,14 @@ func _build_overview() -> void:
 	overview=Node3D.new(); overview.name="WorldOverviewLOD"; add_child(overview)
 	overview.add_child(_terrain(Rect2(Vector2.ZERO,Map.MAP_SIZE),Map.terrain_cell))
 	overview.add_child(_overview_buildings())
+	var road_layer:=Node3D.new(); road_layer.name="ConnectedRoadOverview"
+	var valley: Node=city.get_node("ValleyEnvironment")
+	var records:=[]
+	for part in valley.art_chunks.values(): records.append_array(part)
+	valley._make_art_mesh(road_layer,records)
 	var roads:=SurfaceTool.new(); roads.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for edge in Map.roads:
+		if not edge.get("elevated",false) and not edge.get("ramp",false): continue
 		# Follow terrain at short intervals, including long straight block edges.
 		var samples:=PackedVector2Array([edge.points[0]])
 		for segment in range(1,edge.points.size()):
@@ -268,7 +274,7 @@ func _build_overview() -> void:
 			var ba:=C.to_world(b-right,last_height+.3); var bb:=C.to_world(b+right,last_height+.3)
 			for point in [aa,bb,ab,aa,ba,bb]: roads.add_vertex(point)
 	roads.generate_normals()
-	var lines:=MeshInstance3D.new(); lines.mesh=roads.commit(); lines.material_override=G.material(Color("414344"),true); lines.material_override.cull_mode=BaseMaterial3D.CULL_DISABLED; overview.add_child(lines)
+	var lines:=MeshInstance3D.new(); lines.mesh=roads.commit(); lines.material_override=preload("res://scripts/three_d/road_ground_art.gd").plain_asphalt_material(); road_layer.add_child(lines); overview.add_child(road_layer)
 	var water:=G.cylinder(overview,Map.lake.size.x*.05,.03,Vector3(Map.lake.get_center().x*.1,-.28,Map.lake.get_center().y*.1),Color("508a93"))
 	water.scale.z=Map.lake.size.y/Map.lake.size.x
 

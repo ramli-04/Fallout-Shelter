@@ -39,10 +39,31 @@ but are no longer selected for live buildings. Trees, shrubs, fences and road pr
 remain individually addressable atlas resources; no large reference sheet is pasted
 into the world.
 
-Ground repeats at **0.5 x 0.5 rendered metres**, using all 13 supplied ground regions
-with a shared restrained green palette. Playable ground and the surrounding terrain
-share the same material. Mip filtering reduces distant texture shimmer. Off-map
-highway surfaces and their tunnel/rock scenery are no longer drawn.
+Every supplied ground region repeats at **1 x 1 rendered metre**. Original grass,
+dirt, flower, bush and rock detail is retained. Neighboring textures blend across
+coherent patches; seeded quarter turns reduce repetition. Playable ground and the
+surrounding terrain share this material, including distance filtering.
+
+`resources/building_art_scale.json` defines a single width for each current artwork,
+with a 2.1 m human doorway as the scale reference. Sprite height follows its aspect
+ratio. Parcel dimensions no longer stretch artwork. Detailed buildings, overview
+batches and reusable prefabs use the same registration. These are visual reference
+scales; they do not replace the existing interior/collision layouts.
+
+Vehicle dimensions come from model definitions, never per-instance dimensions.
+The same imported SUV always has the same dimensions, including its SWAT variant.
+Unavailable van, truck, hatchback and motorcycle assets use distinct procedural
+bodies instead of stretching a sedan or SUV into another vehicle class.
+
+Roads now partition the actual connected asphalt geometry into complete, disjoint
+junction and segment surfaces **before triangulation**. Their UVs follow each road's
+axis and cumulative path distance. T junctions and all four corner directions come
+from graph connectivity, not node ID or a triangle's nearest road. Two-road bends
+receive filled corner surfaces and curved center markings. The supplied atlas
+provides asphalt and lane detail; painted perspective curbs inside junction pictures
+are suppressed because the game's physical curb follows the actual street edge.
+Both detailed chunks and the overview use these road surfaces. Off-map tunnel
+scenery remains disabled. New road geometry is rebuilt automatically on startup.
 
 Police and fire use the parking painted into their building art. Extra asphalt,
 parking lines, parking signs and accessibility/loading decals are suppressed for
@@ -53,7 +74,8 @@ fire bays accept fire engines only. Painted apron pixels receive ground-plane de
 so they cannot hide the real vehicles. These are visual simulation vehicles, not
 traffic baked into the station image.
 
-Validation: `test_station_art_parking.gd`, `test_parking_departure.gd` (also accepts
+Validation: `tests/test_road_art_layout.py`, `test_fixed_art_dimensions.gd`,
+`test_sprite_registration.gd`, `test_station_art_parking.gd`, `test_parking_departure.gd` (also accepts
 `-- police` or `-- fire`), `test_visual_streaming.gd`, and
 `test_road_ground_collection.gd`. `render_station_aprons.gd` captures both stations
 and the map edge into `outputs/` for visual inspection.

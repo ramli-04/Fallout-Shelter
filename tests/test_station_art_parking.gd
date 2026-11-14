@@ -29,6 +29,6 @@ func run() -> void:
 			check(v.kind==lot.allowed_vehicle_kind,"fleet restriction")
 			check(Map.lots.all(func(rect):return manager.social.traffic.static_contact(v,v.position,v.position,rect).is_empty()),"bay outside building collision")
 	check(manager.social.vehicles.any(func(v):return v.model=="swat"),"SWAT present")
-	check(preload("res://scripts/three_d/grass_material.gd").TILE_METRES==.5,"half metre grass repeat")
+	check(preload("res://scripts/three_d/grass_material.gd").TILE_METRES==1.0,"one metre grass parcels")
 	manager.queue_free(); await process_frame
 	print("Station art parking: %d checks / %d failures"%[checks,failures]); quit(1 if failures else 0)

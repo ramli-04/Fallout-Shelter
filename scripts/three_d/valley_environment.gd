@@ -12,6 +12,7 @@ var geometry_definition: Dictionary={}
 var streaming_enabled:=false
 var chunk_size:=1800.0
 var road_chunks: Dictionary={}
+var art_chunks: Dictionary={}
 var damage_config: Dictionary={}
 
 func _ready() -> void:
@@ -33,7 +34,21 @@ func _ready() -> void:
 			junctions[id]=maxf(float(junctions.get(id,0)),float(edge.width)*.5+5)
 			pavement_widths[id]=maxf(float(pavement_widths.get(id,0)),float(edge.sidewalk))
 	for id in junctions:
-		if Map.graph.get_point_connections(id).size()<3: continue
+		var connections: PackedInt64Array=Map.graph.get_point_connections(id)
+		if connections.size()<2: continue
+		if connections.size()==2:
+			var center: Vector2=Map.graph.get_point_position(id)
+			var a: Vector2=(Map.graph.get_point_position(connections[0])-center).normalized()
+			var b: Vector2=(Map.graph.get_point_position(connections[1])-center).normalized()
+			if a.dot(b)<-.85: continue
+			var radius: float=float(junctions[id])*1.5
+			var distance:=0.0
+			for step in range(48):
+				var t: float=float(step)/48; var u: float=float(step+1)/48
+				var start: Vector2=center+a*radius*(1-t)*(1-t)+b*radius*t*t
+				var finish: Vector2=center+a*radius*(1-u)*(1-u)+b*radius*u*u
+				if fmod(distance,55)<25: _ribbon(PackedVector2Array([start,finish]),.12,.17,"markings",Color("d6d4ca"))
+				distance+=start.distance_to(finish)
 		for layer in ["asphalt","curb","sidewalk"]:
 			var radius: float=junctions[id]+({"asphalt":0,"curb":2,"sidewalk":pavement_widths[id]}[layer])
 			var polygon:=PackedVector2Array()
@@ -78,6 +93,9 @@ func _ready() -> void:
 		ribbons[key].profile=Map.ramps[i]
 	_commit_ribbons()
 	for key in batches:
+		if key=="asphalt" and not art_chunks.is_empty():
+			for records in art_chunks.values(): _make_art_mesh(self,records)
+			continue
 		var entry: Dictionary=batches[key]
 		var surface: SurfaceTool=entry.surface
 		if road_surfaces.get(key,{}).get("triangles",0)==0: continue
@@ -164,8 +182,20 @@ func _commit_ribbons() -> void:
 		groups[key]={"paths":ribbons[key].paths,"polygons":ribbons[key].polygons,"terrain_cell":Map.terrain_cell}
 	groups.sidewalk.subtract=["curb","asphalt"]
 	groups.curb.subtract=["asphalt"]
+	groups.asphalt.art_roads=Map.roads
+	groups.asphalt.art_revision=(FileAccess.get_file_as_string("res://ai_service/road_art_layout.py")+FileAccess.get_file_as_string("res://ai_service/road_geometry.py")).sha256_text()
+	groups.asphalt.art_nodes=[]
+	for id in Map.graph.get_point_ids():
+		var point: Vector2=Map.graph.get_point_position(id)
+		groups.asphalt.art_nodes.append([point.x,point.y])
+	groups.asphalt.art_parking=[]
+	for lot in Map.parking_lots:
+		if lot.get("integrated_station",false): continue
+		var polygon:=[]
+		for point in lot.polygon: polygon.append([point.x,point.y])
+		groups.asphalt.art_parking.append({"polygon":polygon,"position":[lot.position.x,lot.position.y]})
 	geometry_definition=groups
-	var encoded:=JSON.stringify(groups,"",true,true)
+	var encoded:=JSON.stringify(_json_vectors(groups),"",true,true)
 	var digest:=encoded.sha256_text().substr(0,20)
 	var input:=ProjectSettings.globalize_path("user://city_cache/roads_%d_%s.input.json"%[OS.get_process_id(),digest])
 	var output:=ProjectSettings.globalize_path("user://city_cache/roads_%s.json"%digest)
@@ -177,6 +207,7 @@ func _commit_ribbons() -> void:
 	if not FileAccess.file_exists(output) and OS.execute(python,["-m","ai_service.road_geometry",input,output],logs,true)!=0:
 		push_error("Road triangulation failed: "+str(logs)); return
 	var data: Variant=JSON.parse_string(FileAccess.get_file_as_string(output))
+	_partition_art(data.get("art",[]))
 	if streaming_enabled:
 		_partition_roads(data.groups)
 		return
@@ -206,6 +237,44 @@ func _road_vertex(point: Vector2, definition: Dictionary) -> Vector3:
 		height+=10*(1-along/maxf(.001,total))
 	return Vector3(point.x*.1,height,point.y*.1)
 
+func _json_vectors(value: Variant) -> Variant:
+	if value is Vector2: return [value.x,value.y]
+	if value is PackedVector2Array or value is Array:
+		var result:=[]
+		for item in value: result.append(_json_vectors(item))
+		return result
+	if value is Dictionary:
+		var result: Dictionary={}
+		for key in value: result[key]=_json_vectors(value[key])
+		return result
+	return value
+
+func _partition_art(records: Array) -> void:
+	art_chunks.clear()
+	for record in records:
+		var a:=Map._v2(record.vertices[0]); var b:=Map._v2(record.vertices[1]); var c:=Map._v2(record.vertices[2])
+		var center: Vector2=(a+b+c)/3
+		if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point(center): continue
+		var cell:=Vector2i((center/chunk_size).floor())
+		if not art_chunks.has(cell): art_chunks[cell]=[]
+		art_chunks[cell].append(record)
+
+func _make_art_mesh(parent: Node3D,records: Array) -> void:
+	var groups: Dictionary={}
+	for record in records:
+		var lanes: int=-1 if int(record.tile)==-1 else 4 if int(record.tile)==-4 else 2
+		if not groups.has(lanes):
+			var surface:=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES); groups[lanes]=surface
+		for index in [0,2,1]:
+			var vertex: Array=record.vertices[index]
+			groups[lanes].set_uv(Vector2(vertex[2],vertex[3]))
+			groups[lanes].set_uv2(Vector2(maxi(0,int(record.tile)),0))
+			groups[lanes].add_vertex(Coordinates.to_world(Vector2(vertex[0],vertex[1]),.12))
+	for lanes in groups:
+		var mesh:=MeshInstance3D.new(); mesh.name="ConnectedRoadArtwork"; mesh.mesh=groups[lanes].commit()
+		mesh.material_override=preload("res://scripts/three_d/reference_road_tiles.gd").material(lanes)
+		mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; parent.add_child(mesh)
+
 func _partition_roads(groups: Dictionary) -> void:
 	for key in groups:
 		var definition: Dictionary=ribbons[key]
@@ -231,6 +300,8 @@ func make_chunk(cell: Vector2i) -> Node3D:
 		if key=="sidewalk":
 			preload("res://scripts/three_d/reference_road_tiles.gd").paving_surface(root,road_chunks[cell][key]); continue
 		if key=="asphalt":
+			if not art_chunks.is_empty():
+				_make_art_mesh(root,art_chunks.get(cell,[])); continue
 			preload("res://scripts/three_d/reference_road_tiles.gd").conforming_surface(root,road_chunks[cell][key]); continue
 		var surface:=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 		for point in road_chunks[cell][key]: surface.add_vertex(point)

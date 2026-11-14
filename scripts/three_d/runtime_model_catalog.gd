@@ -23,13 +23,17 @@ static func building_path(index: int, low_detail: bool = false) -> String:
 	var variant := posmod(int(data.get("asset_variant", index)), 3)
 	return BUILDINGS_LOD[variant] if low_detail else BUILDINGS[variant]
 
-static func vehicle_path(model: String, kind: String) -> String:
+static func vehicle_path(model: String, _kind: String) -> String:
 	if model == "swat": return VEHICLES.suv
-	if kind == "Police": return VEHICLES.police
-	if kind == "Medical": return VEHICLES.ambulance
-	if kind == "Fire": return VEHICLES.firetruck
-	if kind == "Civil protection": return VEHICLES.suv
-	return VEHICLES.suv if model in ["suv", "pickup", "van", "delivery_truck", "minibus"] else VEHICLES.sedan
+	if model == "fire_engine": return VEHICLES.firetruck
+	# Unavailable models use their own procedural body. Never stretch an SUV
+	# into a van, bus or rescue truck, or a sedan into a motorcycle.
+	return VEHICLES.get(model,"")
+
+static func vehicle_dimensions(model: String) -> Vector3:
+	var key: String="suv" if model=="swat" else "fire_engine" if model=="firetruck" else model
+	var spec: Dictionary=preload("res://scripts/vehicle_catalog.gd").TYPES.get(key,preload("res://scripts/vehicle_catalog.gd").TYPES.sedan)
+	return Vector3(float(spec.width)*.1,float(spec.height),float(spec.length)*.1)
 
 static func local_bounds(root: Node) -> AABB:
 	var state := {"found": false, "bounds": AABB()}

@@ -21,6 +21,14 @@ void fragment(){
  vec4 color=textureLod(sheet,p/source_size,0.0);
  if(parking || (UV2.x<.5 && (UV.x<0.0 || UV.x>1.0)) || color.a<.95)color=vec4(asphalt(),1.0);
  if(UV2.x>.5 && UV2.x<15.5 && (color.g>color.r*1.1 || color.r-color.b>.04))color=vec4(asphalt(),1.0);
+ // Reference junction pictures include their own raised curbs and perspective.
+ // Keep their asphalt detail on the connected surface; physical curbs and lane
+ // strokes are built from actual road directions, so no curb crosses a lane.
+ if(UV2.x>.5 && UV2.x<15.5){
+  vec3 base=asphalt();
+  float detail=dot(color.rgb,vec3(.2126,.7152,.0722))/max(dot(base,vec3(.2126,.7152,.0722)),.01);
+  color=vec4(base*clamp(detail,.90,1.10),1.0);
+ }
  ALBEDO=color.rgb; ROUGHNESS=1.0;
 }
 """

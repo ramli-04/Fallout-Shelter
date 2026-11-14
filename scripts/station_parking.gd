@@ -2,6 +2,7 @@ extends RefCounted
 ## UV registration of the parking already painted into the current station art.
 ## No second asphalt parcel is drawn. Simulation bays still own departures.
 static func configure(map: Script) -> void:
+	var scales: Dictionary=JSON.parse_string(FileAccess.get_file_as_string("res://resources/building_art_scale.json"))
 	for lot in map.parking_lots:
 		if lot.category not in ["police","offices"]: continue
 		var kind: String="Police Station" if lot.category=="police" else "Fire Station"
@@ -12,7 +13,7 @@ static func configure(map: Script) -> void:
 		lot.integrated_station=true
 		lot.allowed_vehicle_kind="Police" if lot.category=="police" else "Fire"
 		var fire: bool=lot.category=="offices"
-		var width: float=36.0 if fire else 34.0
+		var width: float=float(scales.width_metres["new_fire" if fire else "new_police"])
 		var height: float=width*(403.0/489.0 if fire else 323.0/413.0)
 		var ground_depth: float=width*.45
 		var anchor: float=(height*.47-ground_depth*.5)/.8660254

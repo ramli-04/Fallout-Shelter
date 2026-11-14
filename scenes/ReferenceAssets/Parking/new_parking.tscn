@@ -10,7 +10,12 @@ uniform float opacity=1.0;
 uniform vec4 uv_region=vec4(0.0,0.0,1.0,1.0);
 uniform bool mirror=false;
 uniform int cutout_mask=0;
+uniform int station_apron=0;
+uniform float station_height=1.0;
+uniform float station_ground_center=.8;
+uniform float station_anchor=0.0;
 varying float sprite_depth;
+varying float ground_view_z;
 void vertex(){
  MODELVIEW_MATRIX=VIEW_MATRIX*mat4(INV_VIEW_MATRIX[0],INV_VIEW_MATRIX[1],INV_VIEW_MATRIX[2],MODEL_MATRIX[3]);
  MODELVIEW_MATRIX[0]*=length(MODEL_MATRIX[0].xyz);
@@ -21,6 +26,7 @@ void vertex(){
  sort_position.z+=abs(VERTEX.x)*length(MODEL_MATRIX[0].xyz)*0.9;
  vec4 clip=PROJECTION_MATRIX*sort_position;
  sprite_depth=clip.z/clip.w;
+ ground_view_z=(VIEW_MATRIX*(MODEL_MATRIX[3]-vec4(0.0,station_anchor,0.0,0.0))).z;
 }
 void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv.x<.11 && uv.y<.68)discard;
  if(cutout_mask==2 && ((uv.x>.75 && uv.y>.86)||(uv.x>.8 && uv.y<.025)))discard;
@@ -28,10 +34,17 @@ void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv
  if(cutout_mask==4 && uv.y<.13 && (uv.x<.47 || uv.x>.52))discard;
  if(cutout_mask==5 && uv.x>.61 && uv.y>.9)discard;
  vec4 c=texture(artwork,uv_region.xy+uv*uv_region.zw); if(c.a<0.1)discard; ALBEDO=c.rgb; ALPHA=c.a*opacity;
+ float depth=sprite_depth;
+ // Painted apron pixels lie on the ground, so real fleet vehicles can cover them.
+ float apron_edge=station_apron==1?.48+uv.x*.60:.36+uv.x*.50;
+ if(station_apron>0 && uv.y>apron_edge){
+  vec4 apron_clip=PROJECTION_MATRIX*vec4(0.0,0.0,ground_view_z+(UV.y-station_ground_center)*station_height*1.7320508+.2,1.0);
+  depth=apron_clip.z/apron_clip.w;
+ }
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
- DEPTH=sprite_depth*0.5+0.5;
+ DEPTH=depth*0.5+0.5;
 #else
- DEPTH=sprite_depth;
+ DEPTH=depth;
 #endif
 }
 "
@@ -44,13 +57,17 @@ shader_parameter/opacity = null
 shader_parameter/uv_region = Vector4(0.0065104165, 0.60058594, 0.32552084, 0.3876953)
 shader_parameter/mirror = false
 shader_parameter/cutout_mask = 4
+shader_parameter/station_apron = null
+shader_parameter/station_height = null
+shader_parameter/station_ground_center = null
+shader_parameter/station_anchor = null
 
 [sub_resource type="QuadMesh" id="QuadMesh_pc4kp"]
-size = Vector2(13.222897, 10.4989805)
+size = Vector2(34, 26.996)
 
 [node name="new_parking" type="Node3D" unique_id=2107609247]
 
 [node name="@MeshInstance3D@11" type="MeshInstance3D" parent="." unique_id=1219845364]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2624843, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.8175197, 0)
 material_override = SubResource("ShaderMaterial_ah75j")
 mesh = SubResource("QuadMesh_pc4kp")

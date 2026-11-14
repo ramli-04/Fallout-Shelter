@@ -8,10 +8,12 @@ static var textures: Dictionary={}
 static var shared_shader: Shader
 static var transparent_texture: Texture2D
 static var missing: Dictionary={}
+static var scale_definition: Dictionary=JSON.parse_string(FileAccess.get_file_as_string("res://resources/building_art_scale.json"))
 # Projected ground depth / sprite width, excluding the vertical building body.
 const GROUND_DEPTH={"new_house0":.45,"new_house1":.44,"new_house2":.43,"new_house3":.44,"new_house4":.38,"new_apartment":.4,"new_police":.45,"new_fire":.45,"new_office":.4,"new_parking":.45,"house0":.45,"house1":.45,"house2":.42,"house3":.44,"house4":.45,"house5":.43,"house6":.43,"house7":.42,"house8":.42,"large_house":.40,"duplex":.38,"townhouse":.32,"apartment_small":.44,"apartment_mid":.42,"apartment":.38,"office":.40,"motel":.32,"motel_single":.13,"fire":.36,"police":.35,"medical":.38}
 static func registration(kind: String,region: Rect2,size: Vector2) -> Dictionary:
 	var width: float=(size.x+size.y)*.70710678*.85
+	if scale_definition.width_metres.has(kind): width=float(scale_definition.width_metres[kind])
 	var height: float=width*region.size.y/region.size.x
 	var ground_depth: float=width*float(GROUND_DEPTH.get(kind,.4))
 	# Image-space contact centre must project onto the logical parcel centre.
@@ -56,11 +58,7 @@ static func info(recipe: Dictionary,index: int) -> Dictionary:
 	# Only the latest supplied building collection is active.
 	var sprite_kind: String={"police":"new_police","fire":"new_fire","medical":"new_office","school":"new_office","office":"new_office","industrial":"new_parking","apartment":"new_apartment"}.get(kind,"new_house%d"%posmod(index,5))
 	var region: Rect2=art.REGIONS[sprite_kind]
-	var visual_size: Vector2=recipe.size
-	if kind=="house":
-		var limit:=Vector2(14,12) if sprite_kind=="large_house" else Vector2(11,10)
-		visual_size=visual_size.min(limit)
-	var placement:=registration(sprite_kind,region,visual_size)
+	var placement:=registration(sprite_kind,region,recipe.size)
 	if index<Map.building_data.size() and Map.building_data[index].has("station_art"): placement=Map.building_data[index].station_art
 	var width: float=placement.width
 	var height: float=placement.height
@@ -77,7 +75,7 @@ static func material(key: String) -> ShaderMaterial:
 		result.set_shader_parameter("mirror",int(key.split(":")[2]) in [1,2])
 		result.set_shader_parameter("cutout_mask",art.cutout_mode(kind))
 		if kind in ["new_police","new_fire"]:
-			var width: float=34.0 if kind=="new_police" else 36.0
+			var width: float=float(scale_definition.width_metres[kind])
 			var height: float=width*r.size.y/r.size.x
 			result.set_shader_parameter("station_apron",1 if kind=="new_police" else 2)
 			result.set_shader_parameter("station_height",height)
@@ -120,7 +118,7 @@ void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv
  // Painted apron pixels lie on the ground, so real fleet vehicles can cover them.
  float apron_edge=station_apron==1?.48+uv.x*.60:.36+uv.x*.50;
  if(station_apron>0 && uv.y>apron_edge){
-  vec4 apron_clip=PROJECTION_MATRIX*vec4(0.0,0.0,ground_view_z+(UV.y-station_ground_center)*station_height*1.7320508,1.0);
+  vec4 apron_clip=PROJECTION_MATRIX*vec4(0.0,0.0,ground_view_z+(UV.y-station_ground_center)*station_height*1.7320508+.2,1.0);
   depth=apron_clip.z/apron_clip.w;
  }
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY

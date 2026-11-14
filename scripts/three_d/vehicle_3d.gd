@@ -33,9 +33,8 @@ func configure(record: Dictionary) -> void:
 	vehicle_id = str(record.get("id","vehicle"))
 	model = str(record.get("model",record.get("vehicle_model",_model_from_kind(str(record.get("kind","Civilian"))))))
 	kind = str(record.get("kind","Civilian"))
-	length = maxf(2.0,float(record.get("length",44.0))*.1)
-	width = maxf(0.9,float(record.get("width",19.0))*.1)
-	height = maxf(1.0,float(record.get("body_height",record.get("height",1.6))))
+	var dimensions:=ModelCatalog.vehicle_dimensions(model)
+	length=dimensions.z; width=dimensions.x; height=dimensions.y
 	name = vehicle_id
 	_build_model()
 
@@ -115,7 +114,9 @@ func _build_model() -> void:
 			Geometry.box(self,Vector3(.035,.22,length*.68),Vector3(width*.40,wheel_y+chassis_height*.58,0),Color("e2e2d6"))
 
 func _build_imported_model() -> bool:
-	var packed := load(ModelCatalog.vehicle_path(model,kind)) as PackedScene
+	var path: String=ModelCatalog.vehicle_path(model,kind)
+	if path.is_empty(): return false
+	var packed := load(path) as PackedScene
 	if packed == null:
 		return false
 	var instance := packed.instantiate() as Node3D
