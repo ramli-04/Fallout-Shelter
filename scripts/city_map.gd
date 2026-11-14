@@ -167,6 +167,7 @@ static func load_layout(data: Dictionary, options: Dictionary = {}, started: int
 		lot.bounds=_rect(lot.bounds); lot.polygon=_points(lot.polygon)
 		for bay in lot.bays: bay.position=_v2(bay.position); bay.approach=_points(bay.approach)
 		parking_lots.append(lot)
+	preload("res://scripts/station_parking.gd").configure(load("res://scripts/city_map.gd"))
 	for points in data.highways: highways.append(_points(points))
 	for points in data.ramps: ramps.append(_points(points))
 	districts=data.districts
@@ -214,13 +215,14 @@ static func district_at(point: Vector2) -> String:
 		if Geometry2D.is_point_in_polygon(point,district.polygon): return district.name
 	return "MOUNTAINS"
 
-static func claim_parking(vehicle_id: String, near: Vector2) -> Dictionary:
+static func claim_parking(vehicle_id: String, near: Vector2,kind: String="Civilian") -> Dictionary:
 	if vehicle_id.is_empty(): return {}
 	for lot in parking_lots:
 		for bay in lot.bays:
 			if bay.occupied_by==vehicle_id: return bay
 	var best: Dictionary={}; var distance:=INF
 	for lot in parking_lots:
+		if not preload("res://scripts/station_parking.gd").allows(lot,{"kind":kind}): continue
 		for bay in lot.bays:
 			var d: float=near.distance_squared_to(bay.position)
 			if bay.occupied_by.is_empty() and d<distance: best=bay; distance=d

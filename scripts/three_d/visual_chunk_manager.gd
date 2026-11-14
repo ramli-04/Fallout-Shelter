@@ -241,7 +241,7 @@ func _overview_buildings() -> Node3D:
 		group.add_child(batch)
 		for slot in range(groups[key].size()):
 			var item: Dictionary=groups[key][slot]; var index: int=item.index
-			var transform:=Transform3D(Basis.from_scale(Vector3(item.width,item.height,1)),C.to_world(Map.lots[index].get_center())+Vector3.UP*item.anchor)
+			var transform:=Transform3D(Basis.from_scale(Vector3(item.width,item.height,1)),C.to_world(Map.lots[index].get_center())+Vector3(item.offset.x,item.anchor,item.offset.y))
 			multi.set_instance_transform(slot,transform); proxy_instances[index]={"batch":batch,"slot":slot,"transform":transform}
 	return group
 
@@ -260,6 +260,7 @@ func _build_overview() -> void:
 			for step in range(1,steps+1): samples.append(start.lerp(finish,float(step)/steps))
 		for i in range(1,samples.size()):
 			var a: Vector2=samples[i-1]; var b: Vector2=samples[i]
+			if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point((a+b)*.5): continue
 			var right: Vector2=(b-a).orthogonal().normalized()*float(edge.width)*.5
 			var first_height: float=10 if edge.get("elevated",false) else 10*(1-float(i-1)/(samples.size()-1)) if edge.get("ramp",false) else 0
 			var last_height: float=10 if edge.get("elevated",false) else 10*(1-float(i)/(samples.size()-1)) if edge.get("ramp",false) else 0

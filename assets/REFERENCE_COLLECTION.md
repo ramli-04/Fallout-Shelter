@@ -31,12 +31,32 @@ composition and detailed illustration style. Prompt: preserve the 1536x1024
 layout and every object; replace only checkerboard/background/labels with alpha.
 The result is a prepared derivative, not a claim of pixel-exact extraction.
 
-The live map mixes the new houses and apartments with the prior sheet, updates
-police/fire/office art, adds the parking-garage variant in industrial parcels,
-and replaces playable and horizon cone trees with flat tree illustrations.
-Eight tree variants are batched by texture region; shrubs add planted detail.
-Hospital and motel artwork from previous sheets remain available. Asset import
-uses mipmaps for overview rendering. No new physics is attached to bushes.
+The live map now selects buildings exclusively from this latest collection: all
+five house variants, apartments, police, fire, offices and the parking garage.
+Medical and school roles use the latest office art with their existing POI labels.
+Previous building sheets remain on disk for old recordings and developer resources,
+but are no longer selected for live buildings. Trees, shrubs, fences and road props
+remain individually addressable atlas resources; no large reference sheet is pasted
+into the world.
+
+Ground repeats at **0.5 x 0.5 rendered metres**, using all 13 supplied ground regions
+with a shared restrained green palette. Playable ground and the surrounding terrain
+share the same material. Mip filtering reduces distant texture shimmer. Off-map
+highway surfaces and their tunnel/rock scenery are no longer drawn.
+
+Police and fire use the parking painted into their building art. Extra asphalt,
+parking lines, parking signs and accessibility/loading decals are suppressed for
+these two stations. `scripts/station_parking.gd` registers six police bays and three
+fire-apron bays to artwork UV positions, reserves them for their respective fleet,
+and supplies departure aisles. Police includes marked cars and dark SWAT SUVs;
+fire bays accept fire engines only. Painted apron pixels receive ground-plane depth
+so they cannot hide the real vehicles. These are visual simulation vehicles, not
+traffic baked into the station image.
+
+Validation: `test_station_art_parking.gd`, `test_parking_departure.gd` (also accepts
+`-- police` or `-- fire`), `test_visual_streaming.gd`, and
+`test_road_ground_collection.gd`. `render_station_aprons.gd` captures both stations
+and the map edge into `outputs/` for visual inspection.
 
 Regenerate categorized resources after changing atlas regions:
 `godot --headless --path . --script res://tools/organize_reference_assets.gd`

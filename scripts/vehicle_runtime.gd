@@ -88,6 +88,8 @@ func nearby_pedestrians(point: Vector2, radius: float) -> Array:
 func reserve_spawn(v: Dictionary, vehicles: Array, near: Vector2) -> Dictionary:
 	var bays: Array=[]
 	for lot in Map.parking_lots:
+		if not preload("res://scripts/station_parking.gd").allows(lot,v): continue
+		if v.get("kind","") in ["Police","Fire"] and not lot.get("integrated_station",false): continue
 		for bay in lot.bays:
 			if bay.occupied_by.is_empty(): bays.append(bay)
 	bays.sort_custom(func(a,b): return near.distance_squared_to(a.position)<near.distance_squared_to(b.position))

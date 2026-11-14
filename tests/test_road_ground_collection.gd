@@ -2,6 +2,7 @@ extends SceneTree
 const Art=preload("res://scripts/three_d/road_ground_art.gd")
 func _initialize() -> void:
 	var config:=Art.configuration(); var image:=Art.texture().get_image(); var ratio:=Vector2(image.get_size())/Art.vector(config.source_size); var checks:=0
+	if image.is_compressed(): image.decompress()
 	for group in [config.roads,config.grass]:
 		for name in group:
 			var record: Dictionary=group[name]

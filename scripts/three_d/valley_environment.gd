@@ -17,7 +17,6 @@ var damage_config: Dictionary={}
 func _ready() -> void:
 	name="ValleyEnvironment"
 	_build_background()
-	_build_ruins()
 	for edge in Map.roads:
 		if edge.get("elevated",false) or edge.get("ramp",false): continue
 		var points: PackedVector2Array=edge.points
@@ -48,6 +47,7 @@ func _ready() -> void:
 	for parcel in Map.shelter_parcels.values():
 		_ribbon(PackedVector2Array([parcel.road_entry,parcel.position]),2.5,.10,"alley",Color("b6ad97"))
 	for lot in Map.parking_lots:
+		if lot.get("integrated_station",false): continue
 		_polygon(lot.polygon,.12,"asphalt",Color("414344"))
 		_ribbon(PackedVector2Array([lot.road_entry,lot.position]),3.2,.12,"asphalt",Color("414344"))
 		for bay in lot.bays:
@@ -189,6 +189,7 @@ func _commit_ribbons() -> void:
 			var a:=Vector2(triangle[0][0],triangle[0][1])
 			var b:=Vector2(triangle[1][0],triangle[1][1])
 			var c:=Vector2(triangle[2][0],triangle[2][1])
+			if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point((a+b+c)/3): continue
 			_emit_triangle(surface,a,b,c,definition.offset,definition.highway,0,definition.get("profile",PackedVector2Array()))
 			geometry.triangles+=1
 
@@ -212,6 +213,7 @@ func _partition_roads(groups: Dictionary) -> void:
 		road_surfaces[key]={"triangles":groups[key].size(),"degenerate":0}
 		for triangle in groups[key]:
 			var a:=Map._v2(triangle[0]); var b:=Map._v2(triangle[1]); var c:=Map._v2(triangle[2])
+			if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point((a+b+c)/3): continue
 			var cell:=Vector2i(((a+b+c)/3/chunk_size).floor())
 			if not road_chunks.has(cell): road_chunks[cell]={}
 			if not road_chunks[cell].has(key): road_chunks[cell][key]=PackedVector3Array()
@@ -238,6 +240,7 @@ func make_chunk(cell: Vector2i) -> Node3D:
 		root.add_child(mesh)
 	var bounds:=Rect2(Vector2(cell)*chunk_size,Vector2.ONE*chunk_size)
 	for lot in Map.parking_lots:
+		if lot.get("integrated_station",false): continue
 		if not bounds.has_point(lot.position) or lot.bays.is_empty(): continue
 		var bay: Dictionary=lot.bays[0]
 		preload("res://scripts/three_d/reference_sprite_catalog.gd").ground_decal(root,"accessible_paving",Vector2(6.2,2.8),Coordinates.to_world(bay.position,.15),bay.heading)
@@ -280,6 +283,7 @@ func _marks(points: PackedVector2Array, highway: bool) -> void:
 			var along := minf(cursor*12,length)
 			if fmod(distance+along,65) > 27: continue
 			var point := points[i-1]+tangent*along
+			if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point(point): continue
 			for lane in [-2,-1,1,2] if highway else [0]:
 				var mid: Vector2 = point+normal*lane*35*float(Map.generation_settings.road_width_multiplier)
 				_ribbon(PackedVector2Array([mid,mid+tangent*9]),0.12,0.38,"markings",Color("d9cfad"),highway)
@@ -293,32 +297,17 @@ func _highway_details(points: PackedVector2Array) -> void:
 			rail.append(points[i]+direction.orthogonal()*side*104*float(Map.generation_settings.road_width_multiplier))
 		_ribbon(rail,0.32,1.0,"guardrails",Color("b5b9ac"),true)
 	for i in range(4,points.size()-3,5):
+		if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point(points[i]): continue
 		var ground: Dictionary=Map.nearest_edge(points[i])
 		if ground.point.distance_to(points[i])<float(ground.edge.width)*.5+25: continue
 		var point := Coordinates.to_world(points[i],0)
 		G.box(self,Vector3(1.5,10,3.5),point+Vector3.UP*5,Color("92988c"))
 	for index in [15,55,88]:
+		if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point(points[index]): continue
 		var point := Coordinates.to_world(points[index],11)
 		G.box(self,Vector3(0.22,5,0.22),point+Vector3(7,2.5,0),Color("a3aaa0"))
 		G.box(self,Vector3(7,2,0.22),point+Vector3(4,4,0),Color("375d54"))
 		G.label(self,"VALLEY / A7",point+Vector3(4,4,0.2),Color("e5e6d3"),25,0.025)
-	for index in [4,96]:
-		var point := Coordinates.to_world(points[index],10)
-		var tunnel := Node3D.new()
-		tunnel.position = point
-		tunnel.rotation.y = -(points[mini(index+1,100)]-points[index-1]).angle()+PI/2
-		add_child(tunnel)
-		# Arch geometry wraps around an open black tunnel mouth.
-		for i in range(13):
-			var angle := i*PI/12
-			var block := G.box(tunnel,Vector3(1.5,2.2,4),Vector3(cos(angle)*7,sin(angle)*7,0),Color("8e938a"))
-			block.rotation.z = angle-PI/2
-		G.box(tunnel,Vector3(12,8,0.2),Vector3(0,3,2),Color("252f30"))
-		for side in [-1,1]:
-			var rock := G.cylinder(tunnel,15,26,Vector3(side*17,0,7),Color("777e70"))
-			G.make_mesh_unique(rock)
-			rock.mesh.radial_segments = 5
-			rock.mesh.top_radius = 4
 
 func _background_height(point: Vector2) -> float:
 	var uv := point/Map.MAP_SIZE
@@ -332,26 +321,26 @@ func _build_background() -> void:
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	# A circular horizon extending far beyond all permitted camera positions.
 	var center := Map.MAP_SIZE*0.5
-	var rings := 60
-	var segments := 144
+	var rings := 30
+	# Match every playable terrain edge vertex, including the four corners.
+	var perimeter:=PackedVector2Array()
+	var nx:=ceili(Map.MAP_SIZE.x/Map.terrain_cell); var ny:=ceili(Map.MAP_SIZE.y/Map.terrain_cell)
+	for x in range(nx): perimeter.append(Vector2(minf(x*Map.terrain_cell,Map.MAP_SIZE.x),0))
+	for y in range(ny): perimeter.append(Vector2(Map.MAP_SIZE.x,minf(y*Map.terrain_cell,Map.MAP_SIZE.y)))
+	for x in range(nx,0,-1): perimeter.append(Vector2(minf(x*Map.terrain_cell,Map.MAP_SIZE.x),Map.MAP_SIZE.y))
+	for y in range(ny,0,-1): perimeter.append(Vector2(0,minf(y*Map.terrain_cell,Map.MAP_SIZE.y)))
+	var segments := perimeter.size()
 	for ring in range(rings):
 		for segment in range(segments):
 			var points := []
 			for pair in [Vector2(ring,segment),Vector2(ring+1,segment),Vector2(ring+1,segment+1),Vector2(ring,segment+1)]:
-				var angle: float = pair.y/segments*TAU
-				var direction := Vector2(cos(angle),sin(angle))
-				# Begin at exact rectangular playable perimeter, then extend radially.
-				var boundary := minf(Map.MAP_SIZE.x*0.5/maxf(absf(direction.x),0.001),Map.MAP_SIZE.y*0.5/maxf(absf(direction.y),0.001))
-				# Beyond the far clip from every permitted camera position. The
-				# nonlinear spacing preserves detail near the playable perimeter.
-				points.append(center+direction*(boundary+pow(pair.x/rings,1.7)*Map.MAP_SIZE.x*14.0))
+				var edge: Vector2=perimeter[int(pair.y)%segments]
+				var direction: Vector2=(edge-center).normalized()
+				points.append(edge+direction*pow(pair.x/rings,1.7)*Map.MAP_SIZE.x*14.0)
 			for index in [0,2,1,0,3,2]:
 				var point: Vector2 = points[index]
-				var height := _background_height(point)
-				var outside := maxf(maxf(-point.x/Map.MAP_SIZE.x,point.x/Map.MAP_SIZE.x-1),maxf(-point.y/Map.MAP_SIZE.y,point.y/Map.MAP_SIZE.y-1))
-				var edge_color: Color = get_parent()._terrain_color(point.clamp(Vector2.ZERO,Map.MAP_SIZE-Vector2.ONE))
-				var color := edge_color.lerp(Color("7d8576").lerp(Color("a4a79b"),clampf(height/200,0,1)),smoothstep(0.03,0.45,outside))
-				surface.set_color(color)
+				var height := _background_height(point)-.02
+
 				surface.add_vertex(Vector3(point.x*0.1,height,point.y*0.1))
 				background_vertices += 1
 	surface.index()
@@ -359,9 +348,7 @@ func _build_background() -> void:
 	var terrain := MeshInstance3D.new()
 	terrain.name = "BackgroundMountains"
 	terrain.mesh = surface.commit()
-	terrain.material_override = G.material(Color.WHITE)
-	terrain.material_override.vertex_color_use_as_albedo = true
-	terrain.material_override.cull_mode = BaseMaterial3D.CULL_DISABLED
+	terrain.material_override = preload("res://scripts/three_d/grass_material.gd").material()
 	add_child(terrain)
 	# The horizon uses the same flat conifer artwork as the playable chunks.
 	var instances := MultiMesh.new()

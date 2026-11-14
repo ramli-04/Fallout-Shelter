@@ -215,6 +215,7 @@ func reserve_destination(v: Dictionary, target: Vector2) -> Dictionary:
 	if parking_destinations.has(v.id): return parking_destinations[v.id]
 	var candidates: Array=[]
 	for lot in Map.parking_lots:
+		if not preload("res://scripts/station_parking.gd").allows(lot,v): continue
 		for bay in lot.bays:
 			if bay.occupied_by.is_empty(): candidates.append(bay)
 	candidates.sort_custom(func(a,b):return target.distance_squared_to(a.position)<target.distance_squared_to(b.position))

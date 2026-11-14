@@ -142,6 +142,7 @@ func _add_vehicle(a: Dictionary, kind: String) -> void:
 	if not manager.world.current.is_empty():
 		vehicle_rng=RandomNumberGenerator.new(); vehicle_rng.seed=int(manager.world.current.streams.vehicles)+int(a.get("population_index",0))*173
 	var model: String=preload("res://scripts/vehicle_catalog.gd").choose(kind,vehicle_rng)
+	if kind=="Police": model="swat" if vehicles.filter(func(v):return v.kind=="Police").size()%3==2 else "police"
 	var catalog: Dictionary=preload("res://scripts/vehicle_catalog.gd").TYPES
 	if kind=="Civilian":
 		for family in families:

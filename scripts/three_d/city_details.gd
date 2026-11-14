@@ -32,6 +32,7 @@ func _ready() -> void:
 		G.box(self,Vector3(3,.15,3),p+Vector3.UP*.08,Color("646e68"))
 		G.label(self,"METRO / S2",p+Vector3.UP*2.4,Color("c7c6ad"),35,.025)
 	for lot in Map.parking_lots:
+		if lot.get("integrated_station",false): continue
 		if not _inside(lot.position): continue
 		var sign_position: Vector3=C.to_world(lot.position+lot.tangent*120)
 		G.box(self,Vector3(.12,2.6,.12),sign_position+Vector3.UP*1.3,Color("687576"))

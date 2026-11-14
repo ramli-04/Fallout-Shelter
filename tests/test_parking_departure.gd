@@ -14,6 +14,9 @@ func run() -> void:
 	var selected: Array=[]
 	var lot: Dictionary={}
 	for candidate in Map.parking_lots:
+		var args:=OS.get_cmdline_user_args()
+		if args.has("police") and candidate.category!="police": continue
+		if args.has("fire") and candidate.category!="offices": continue
 		var parked: Array=social.vehicles.filter(func(v):return candidate.bounds.has_point(v.position))
 		if parked.size()>=2: selected=parked.slice(0,2); lot=candidate; break
 	check(selected.size()==2,"two parked vehicles share a generated lot")
@@ -34,7 +37,7 @@ func run() -> void:
 		check(v.position.distance_to(initial[i])>100,"vehicle %d physically leaves its parking bay"%i)
 		check(not social.traffic.parking_maneuver(v),"vehicle %d completes its exit route"%i)
 		check(v.status!="ACCIDENT","vehicle %d exits without a parking crash"%i)
-		if social.traffic.parking_maneuver(v) or v.status=="ACCIDENT": print("Parking diagnostic: ",v.id," ",v.status," ",v.get("driving_reason","")," ",v.position," ",v.get("route_index",0)," ",v.get("parking_exit_end",0))
+		if social.traffic.parking_maneuver(v) or v.status=="ACCIDENT": print("Parking diagnostic: ",v.id," ",v.status," ",v.get("driving_reason","")," ",v.position," ",v.get("route_index",0)," ",v.get("parking_exit_end",0)," collision=",v.collision_state)
 	var urgency: float=social.driving.alert_urgency(selected[0]); check(urgency==social.driving.alert_urgency(selected[0]),"alert driving personality is deterministic")
 	manager.phase="LIVING"; check(social.driving.alert_urgency(selected[0])==0,"ordinary driving has no alert rule relaxation")
 	manager.queue_free(); await process_frame

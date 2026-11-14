@@ -24,6 +24,7 @@ static func building_path(index: int, low_detail: bool = false) -> String:
 	return BUILDINGS_LOD[variant] if low_detail else BUILDINGS[variant]
 
 static func vehicle_path(model: String, kind: String) -> String:
+	if model == "swat": return VEHICLES.suv
 	if kind == "Police": return VEHICLES.police
 	if kind == "Medical": return VEHICLES.ambulance
 	if kind == "Fire": return VEHICLES.firetruck

@@ -45,6 +45,7 @@ func _model_from_kind(value: String) -> String:
 func _build_model() -> void:
 	var emergency := kind != "Civilian"
 	var paint: Color = {"Police":Color("294c70"),"Medical":Color("e8e8dc"),"Fire":Color("a83c32"),"Civil protection":Color("62704d")}.get(kind,Color.from_hsv(fposmod(float(abs(vehicle_id.hash()))*.0001,1.0),.38,.72))
+	if model=="swat": paint=Color("202b35")
 	base_paint=paint
 	wheel_radius = clampf(width*.17,.24,.40)
 	var cabin_height: float = clampf(height*.48,.48,1.15)
@@ -138,6 +139,11 @@ func _build_imported_model() -> bool:
 			imported_wheels.append(wheel)
 			imported_wheel_rest.append(wheel.transform)
 			wheel_is_front.append(str(wheel.name).to_lower().contains("front"))
+	if model=="swat":
+		for node in instance.find_children("*","MeshInstance3D",true,false):
+			if not str(node.name).to_lower().contains("wheel"):
+				node.material_override=Geometry.shared_material(Color("202b35"))
+		Geometry.label(self,"SWAT",Vector3(width*.51,height*.62,0),Color.WHITE,28,.012)
 	if imported_wheels.size()<4:
 		instance.free()
 		imported_model_root=null

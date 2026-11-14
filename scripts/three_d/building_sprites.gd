@@ -53,29 +53,19 @@ static func info(recipe: Dictionary,index: int) -> Dictionary:
 	for poi in Map.pois:
 		if poi.footprint==Map.lots[index]: kind={"Fire Station":"fire","Police Station":"police","Medical Station":"medical","School":"school","Bank":"office"}.get(poi.kind,"apartment")
 	var art=preload("res://scripts/three_d/reference_sprite_catalog.gd")
-	var sprite_kind:=kind
-	if kind=="house": sprite_kind="large_house" if index%10==9 else "house%d"%posmod(index,9)
-	elif kind=="apartment": sprite_kind=["apartment_small","apartment_mid","townhouse","duplex"][posmod(index,4)]
-	elif kind=="industrial": sprite_kind="motel" if index%2==0 else "motel_single"
-	elif kind in ["office","school"]: sprite_kind="office" if kind=="office" else "townhouse"
-	if index<Map.building_data.size() and str(Map.building_data[index].get("asset_type",""))=="motel": sprite_kind="motel"
-	if kind=="house" and index%2==0: sprite_kind="new_house%d"%posmod(index/2,4)
-	elif kind=="police": sprite_kind="new_police"
-	elif kind=="fire": sprite_kind="new_fire"
-	elif kind=="office": sprite_kind="new_office"
-	elif kind=="apartment" and index%3==0: sprite_kind="new_apartment"
-	elif kind=="industrial" and index%5==0: sprite_kind="new_parking"
-	if index<Map.building_data.size() and Map.building_data[index].get("asset_type","")=="motel": sprite_kind="motel"
+	# Only the latest supplied building collection is active.
+	var sprite_kind: String={"police":"new_police","fire":"new_fire","medical":"new_office","school":"new_office","office":"new_office","industrial":"new_parking","apartment":"new_apartment"}.get(kind,"new_house%d"%posmod(index,5))
 	var region: Rect2=art.REGIONS[sprite_kind]
 	var visual_size: Vector2=recipe.size
 	if kind=="house":
 		var limit:=Vector2(14,12) if sprite_kind=="large_house" else Vector2(11,10)
 		visual_size=visual_size.min(limit)
 	var placement:=registration(sprite_kind,region,visual_size)
+	if index<Map.building_data.size() and Map.building_data[index].has("station_art"): placement=Map.building_data[index].station_art
 	var width: float=placement.width
 	var height: float=placement.height
 	var facing:=posmod(roundi(Map.lot_angles[index]/(PI*.5)),4)
-	return {"kind":kind,"key":"sheet:%s:%d"%[sprite_kind,facing],"width":width,"height":height,"anchor":placement.anchor,"ground_depth":placement.ground_depth}
+	return {"kind":kind,"key":"sheet:%s:%d"%[sprite_kind,facing],"width":width,"height":height,"anchor":placement.anchor,"ground_depth":placement.ground_depth,"offset":placement.get("offset",Vector2.ZERO)}
 static func material(key: String) -> ShaderMaterial:
 	if materials.has(key): return materials[key]
 	if shared_shader==null: shared_shader=Shader.new(); shared_shader.code=shader_source()
@@ -86,6 +76,13 @@ static func material(key: String) -> ShaderMaterial:
 		result.set_shader_parameter("uv_region",Vector4(r.position.x/size.x,r.position.y/size.y,r.size.x/size.x,r.size.y/size.y))
 		result.set_shader_parameter("mirror",int(key.split(":")[2]) in [1,2])
 		result.set_shader_parameter("cutout_mask",art.cutout_mode(kind))
+		if kind in ["new_police","new_fire"]:
+			var width: float=34.0 if kind=="new_police" else 36.0
+			var height: float=width*r.size.y/r.size.x
+			result.set_shader_parameter("station_apron",1 if kind=="new_police" else 2)
+			result.set_shader_parameter("station_height",height)
+			result.set_shader_parameter("station_ground_center",.97-width*.45/(2*height))
+			result.set_shader_parameter("station_anchor",(height*.47-width*.45*.5)/.8660254)
 	materials[key]=result; return result
 static func shader_source() -> String:
 	return """shader_type spatial;
@@ -95,7 +92,12 @@ uniform float opacity=1.0;
 uniform vec4 uv_region=vec4(0.0,0.0,1.0,1.0);
 uniform bool mirror=false;
 uniform int cutout_mask=0;
+uniform int station_apron=0;
+uniform float station_height=1.0;
+uniform float station_ground_center=.8;
+uniform float station_anchor=0.0;
 varying float sprite_depth;
+varying float ground_view_z;
 void vertex(){
  MODELVIEW_MATRIX=VIEW_MATRIX*mat4(INV_VIEW_MATRIX[0],INV_VIEW_MATRIX[1],INV_VIEW_MATRIX[2],MODEL_MATRIX[3]);
  MODELVIEW_MATRIX[0]*=length(MODEL_MATRIX[0].xyz);
@@ -106,6 +108,7 @@ void vertex(){
  sort_position.z+=abs(VERTEX.x)*length(MODEL_MATRIX[0].xyz)*0.9;
  vec4 clip=PROJECTION_MATRIX*sort_position;
  sprite_depth=clip.z/clip.w;
+ ground_view_z=(VIEW_MATRIX*(MODEL_MATRIX[3]-vec4(0.0,station_anchor,0.0,0.0))).z;
 }
 void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv.x<.11 && uv.y<.68)discard;
  if(cutout_mask==2 && ((uv.x>.75 && uv.y>.86)||(uv.x>.8 && uv.y<.025)))discard;
@@ -113,16 +116,23 @@ void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv
  if(cutout_mask==4 && uv.y<.13 && (uv.x<.47 || uv.x>.52))discard;
  if(cutout_mask==5 && uv.x>.61 && uv.y>.9)discard;
  vec4 c=texture(artwork,uv_region.xy+uv*uv_region.zw); if(c.a<0.1)discard; ALBEDO=c.rgb; ALPHA=c.a*opacity;
+ float depth=sprite_depth;
+ // Painted apron pixels lie on the ground, so real fleet vehicles can cover them.
+ float apron_edge=station_apron==1?.48+uv.x*.60:.36+uv.x*.50;
+ if(station_apron>0 && uv.y>apron_edge){
+  vec4 apron_clip=PROJECTION_MATRIX*vec4(0.0,0.0,ground_view_z+(UV.y-station_ground_center)*station_height*1.7320508,1.0);
+  depth=apron_clip.z/apron_clip.w;
+ }
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
- DEPTH=sprite_depth*0.5+0.5;
+ DEPTH=depth*0.5+0.5;
 #else
- DEPTH=sprite_depth;
+ DEPTH=depth;
 #endif
 }
 """
 static func build(parent: Node3D,recipe: Dictionary,index: int) -> Node3D:
 	var data:=info(recipe,index); var root:=Node3D.new(); root.name="BuildingSprite"; root.set_meta("architecture_type",data.kind); parent.add_child(root)
-	var node:=MeshInstance3D.new(); var quad:=QuadMesh.new(); quad.size=Vector2(data.width,data.height); node.mesh=quad; node.position.y=data.anchor; node.material_override=material(data.key); node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; node.extra_cull_margin=data.height; root.add_child(node); return root
+	var node:=MeshInstance3D.new(); var quad:=QuadMesh.new(); quad.size=Vector2(data.width,data.height); node.mesh=quad; root.position=parent.basis.inverse()*Vector3(data.offset.x,0,data.offset.y); node.position.y=data.anchor; node.material_override=material(data.key); node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; node.extra_cull_margin=data.height; root.add_child(node); return root
 
 static func visual_door(recipe: Dictionary,index: int) -> Vector2:
 	var data:=info(recipe,index)
@@ -132,4 +142,4 @@ static func visual_door(recipe: Dictionary,index: int) -> Vector2:
 	var screen_x: float=(uv.x-.5)*float(data.width)
 	var screen_down: float=(uv.y-ground_center)*float(data.height)
 	var offset:=Vector2(screen_x+screen_down/.5,-screen_x+screen_down/.5)/sqrt(2.0)
-	return Map.lots[index].get_center()+offset/.1
+	return Map.lots[index].get_center()+(offset+data.offset)/.1
