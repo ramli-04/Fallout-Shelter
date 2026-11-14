@@ -5,6 +5,8 @@ const Actions = preload("res://scripts/llm_actions.gd")
 var manager: Node
 var status := "DISCONNECTED"
 var pending := {}
+var shelter_pending := {}
+var shelter_results: Array = []
 var decision_queue: Array[Dictionary] = []
 var queued := {}
 var health_request: HTTPRequest
@@ -88,7 +90,7 @@ func save_logs() -> void:
 		if log_worker.is_alive(): return
 		log_worker.wait_to_finish()
 	log_worker = Thread.new()
-	var snapshot := {"run_id": run_id, "seed": manager.seed_value, "preset": manager.ai_config.get("experiment_preset", "legacy"), "metrics": metrics, "per_model": model_metrics, "backend": backend_health, "decisions": records}
+	var snapshot := {"run_id": run_id, "seed": manager.seed_value, "world": manager.world_metadata(), "preset": manager.ai_config.get("experiment_preset", "legacy"), "metrics": metrics, "per_model": model_metrics, "backend": backend_health, "decisions": records}
 	if log_worker.start(write_log_file.bind("res://outputs/ai_runs/" + run_id + ".json", snapshot.duplicate(true))) == OK:
 		logs_dirty = false
 
@@ -101,6 +103,7 @@ func configure(owner_manager: Node) -> void:
 	health_request.request_completed.connect(_health_completed)
 
 func reset_run() -> void:
+	shelter_results.clear()
 	invalidate_run()
 	if log_worker != null:
 		log_worker.wait_to_finish()
@@ -115,12 +118,17 @@ func reset_run() -> void:
 	for request in pending.values():
 		request.cancel_request()
 		request.queue_free()
+	for request in shelter_pending.values():
+		request.cancel_request()
+		request.queue_free()
 	pending.clear()
+	shelter_pending.clear()
 	decision_queue.clear()
 	queued.clear()
 	applied_decisions.clear()
 
 func _process(_delta: float) -> void:
+	drain_shelter_results()
 	if Time.get_ticks_msec() >= next_log_msec:
 		next_log_msec = Time.get_ticks_msec() + 1000
 		save_logs()
@@ -159,6 +167,7 @@ func _health_completed(result: int, code: int, _headers: PackedStringArray, body
 		status = value if value in ["CONNECTED", "DISCONNECTED", "MODEL_UNAVAILABLE", "DEGRADED"] else "DEGRADED"
 
 func request_decision(agent: Dictionary) -> bool:
+	if manager.social != null and manager.social.replaying: return false
 	if status not in ["CONNECTED", "DEGRADED"]:
 		return false
 	if pending.has(agent["id"]) or queued.has(agent["id"]):
@@ -255,6 +264,50 @@ func _send_decision(agent: Dictionary) -> bool:
 		return false
 	return true
 
+func request_shelter_decision(agent: Dictionary, context: Dictionary, allowed_actions: Array[String], callback: Callable) -> String:
+	if manager==null or not manager.ai_config.get("enabled",false) or status not in ["CONNECTED","DEGRADED"]: return ""
+	if manager.social!=null and manager.social.replaying: return ""
+	if shelter_pending.has(agent.id) or pending.size()+shelter_pending.size()>=int(manager.ai_config.get("max_concurrent_requests",30)): return ""
+	var sequence:=int(agent.get("shelter_cognitive_sequence",0))+1
+	agent.shelter_cognitive_sequence=sequence
+	var request_id: String="shelter-%s-%d"%[agent.id,sequence]
+	var base_run:=run_id
+	var cognitive_run:=run_id+"-shelter"
+	var sent_time: float=manager.elapsed_seconds
+	var sent_wall:=Time.get_ticks_msec()
+	var profile: Dictionary={"id":agent.id,"role":agent.get("role","Civilian"),"occupation":agent.get("occupation","Resident"),"personality":agent.get("primary_personality",""),"age":agent.get("age",30),"empathy":agent.get("empathy",50),"cooperation":agent.get("cooperation",50),"leadership":agent.get("leadership",0),"skills":agent.get("skills",{})}
+	var request:=HTTPRequest.new(); request.timeout=float(manager.ai_config.get("request_timeout_seconds",30)); add_child(request); shelter_pending[agent.id]=request
+	request.request_completed.connect(func(result: int,code: int,_headers: PackedStringArray,body: PackedByteArray):
+		if shelter_pending.get(agent.id)==request: shelter_pending.erase(agent.id)
+		request.queue_free()
+		var packet: Variant=JSON.parse_string(body.get_string_from_utf8()) if result==HTTPRequest.RESULT_SUCCESS and code==200 else null
+		var decision: Dictionary={}
+		if packet is Dictionary and base_run==run_id and manager.phase=="IMPACT" and not manager.post_impact_complete and manager.elapsed_seconds-sent_time<=float(manager.ai_config.get("max_response_age_seconds",120)):
+			var candidate: Variant=packet.get("decision",{})
+			if packet.get("run_id")==cognitive_run and packet.get("request_id")==request_id and packet.get("agent_id")==agent.id and candidate is Dictionary and candidate.get("action","") in allowed_actions:
+				decision=candidate
+		if base_run==run_id:
+			var usage: Dictionary=packet if packet is Dictionary else {}
+			var tokens: Array=usage.get("usage",[0,0])
+			if tokens.size()==2: usage.merge({"input_tokens":tokens[0],"output_tokens":tokens[1]},true)
+			record_result({"agent_id":agent.id,"model":agent.get("model_tier","A"),"success":not decision.is_empty(),"latency_seconds":(Time.get_ticks_msec()-sent_wall)/1000.0,"input_tokens":usage.get("input_tokens",0),"output_tokens":usage.get("output_tokens",0),"scope":"shelter"})
+			shelter_results.append({"run_id":base_run,"sent_time":sent_time,"callback":callback,"decision":decision})
+			drain_shelter_results())
+	var packet: Dictionary={"schema_version":1,"run_id":cognitive_run,"request_id":request_id,"agent_id":agent.id,"group":agent.get("model_tier","A"),"profile":profile,"context":context,"allowed_actions":allowed_actions,"allowed_targets":[]}
+	if request.request(manager.ai_config["service_url"]+"/shelter/decision",["Content-Type: application/json"],HTTPClient.METHOD_POST,JSON.stringify(packet))!=OK:
+		shelter_pending.erase(agent.id); request.queue_free(); return ""
+	return request_id
+
+func drain_shelter_results() -> void:
+	if manager==null: return
+	if manager.post_impact_complete or (manager.social!=null and manager.social.replaying): shelter_results.clear(); return
+	if not manager.running: return
+	var completed:=shelter_results.duplicate(); shelter_results.clear()
+	for item in completed:
+		if item.run_id!=run_id: continue
+		var valid: bool=manager.phase=="IMPACT" and manager.elapsed_seconds-float(item.sent_time)<=float(manager.ai_config.get("max_response_age_seconds",120))
+		if item.callback.is_valid(): item.callback.call(item.decision if valid else {})
+
 func publish_event(topic: String, payload: Dictionary, agent_id: String = "") -> void:
 	if not manager.ai_config.get("enabled", false): return
 	if not manager.running or status not in ["CONNECTED", "DEGRADED"]: return
@@ -268,6 +321,7 @@ func publish_event(topic: String, payload: Dictionary, agent_id: String = "") ->
 		event_inflight -= 1
 		event_request.queue_free())
 	var body := {"topic": topic, "payload": payload, "run_id": run_id, "agent_id": agent_id, "correlation_id": str(Time.get_ticks_usec())}
+	body.payload=payload.duplicate(true); body.payload.merge(manager.world_metadata())
 	if event_request.request(manager.ai_config["service_url"] + "/events", ["Content-Type: application/json"], HTTPClient.METHOD_POST, JSON.stringify(body)) != OK:
 		event_inflight -= 1
 		event_request.queue_free()

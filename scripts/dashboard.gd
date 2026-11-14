@@ -124,6 +124,8 @@ static func update_shelter_card(card: Button, record: Dictionary) -> void:
 	card.get_meta("status_label").text = "STATUS: " + status
 	if record.get("door_status", "OPEN") == "BLOCKED":
 		card.get_meta("status_label").text = "STATUS: Door blocked"
+	if record.get("safety_status","SAFE") in ["UNSAFE","DESTROYED"]:
+		card.get_meta("status_label").text="STATUS: "+str(record.safety_status)
 	card.get_meta("occupancy_bar").value = record["occupancy"]
 
 

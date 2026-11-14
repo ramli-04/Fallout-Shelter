@@ -8,3 +8,10 @@ outputs/
 .env
 
 outputs/ai_runs/
+
+# Optional local Graphify tools and generated code graph.
+/.tools/
+/graphify-out/
+
+# Optional developer bake outputs; runtime buildings use reference_city atlases.
+/assets/building_sprites/

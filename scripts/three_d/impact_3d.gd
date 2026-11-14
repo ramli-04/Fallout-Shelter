@@ -23,6 +23,7 @@ func _ready() -> void:
 	flash.position.y = 3
 	add_child(flash)
 	dust = Geometry.cylinder(self,1.0,1.0,Vector3(0,2,0),Color(0.45,0.4,0.33,0.18))
+	dust.material_override=Geometry.material(Color(0.45,0.4,0.33,0.18),true)
 	dust.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	dust.material_override.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	for i in range(5):
@@ -36,10 +37,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	age += delta
-	wave.scale = Vector3.ONE*(1+minf(radius,age*90))
-	flash.scale = Vector3.ONE*(1+age*25)
+	var wave_radius:=1+minf(radius,age*radius/5.5)
+	wave.scale = Vector3(wave_radius,1,wave_radius)
+	flash.scale = Vector3.ONE*(1+age*minf(radius*.2,160))
 	flash.visible = age < 0.45
-	dust.scale = Vector3(minf(radius,age*45),minf(35,age*5),minf(radius,age*45))
+	dust.scale = Vector3(minf(radius,age*radius/6.5),minf(35,age*5),minf(radius,age*radius/6.5))
 	dust.material_override.albedo_color.a = 0.18*maxf(0,1-age/8)
 	for cloud in smoke:
 		cloud.position.y = 20+age*8

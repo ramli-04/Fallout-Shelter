@@ -25,7 +25,7 @@ static func perceive(manager: Node) -> void:
 
 static func act(manager: Node, agent: Dictionary, duration: float) -> bool:
 	var time: float = manager.elapsed_seconds
-	agent["panic_level"] = maxf(0, agent["panic_level"] - manager.living["panic_decay_per_second"]*duration)
+	agent["panic_level"] = maxf(0, agent["panic_level"] - manager.living["panic_decay_per_second"]*duration*(.5+float(agent.get("stress_tolerance",50))/100))
 	agent["avoided_locations"] = agent["avoided_locations"].filter(func(a: Dictionary): return a["until"] > time)
 	if agent["state"] in ["SHELTERED", "EXPOSED", "SAFE"]:
 		return false
@@ -54,7 +54,7 @@ static func act(manager: Node, agent: Dictionary, duration: float) -> bool:
 		return false
 	if agent["primary_personality"] in ["COOPERATIVE", "SELF-SACRIFICING", "FAMILY-ORIENTED"] and agent["cooperation"] + agent["empathy"] >= 120:
 		for other in manager.agents:
-			if other == agent or other["state"] in ["SHELTERED", "EXPOSED"] or other["id"] in agent["helped_ids"]:
+			if not manager.can_observe(agent,other) or other == agent or other["state"] in ["SHELTERED", "EXPOSED"] or other["id"] in agent["helped_ids"]:
 				continue
 			if agent["primary_personality"] == "FAMILY-ORIENTED" and other["id"] != agent["companion_id"]:
 				continue
@@ -74,7 +74,7 @@ static func social_observations(manager: Node) -> void:
 	for agent in manager.agents:
 		var crowds := {}
 		for other in manager.agents:
-			if other == agent or other["objective"].is_empty() or agent["position"].distance_to(other["position"]) > manager.living["communication_radius"]:
+			if not manager.can_observe(agent,other) or other == agent or other["objective"].is_empty() or agent["position"].distance_to(other["position"]) > manager.living["communication_radius"]:
 				continue
 			var id: String = other["objective"]
 			crowds[id] = int(crowds.get(id, 0)) + 1

@@ -3,6 +3,9 @@ extends RefCounted
 
 const EFFECTS := {"maintenance": "Temporarily refuses admission", "door": "Entrance temporarily blocked", "road": "Affected travelers must wait", "crowd": "Local panic and route avoidance", "rats": "Supply contamination and perceived risk"}
 
+static func shelter_storyteller() -> RefCounted:
+	return preload("res://scripts/shelter_storyteller.gd").new()
+
 static func schedule(seed_value: int, shelters: Array, delay: float, config: Dictionary) -> Array[Dictionary]:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value + 5051
@@ -46,6 +49,7 @@ static func update(manager: Node) -> void:
 	var time: float = manager.elapsed_seconds - manager.alarm_started_seconds
 	var changed := false
 	for event in manager.environment_events:
+		if event.get("dynamic",false) or event.get("scope","")=="shelter": continue
 		if not event["started"] and time + 0.000001 >= event["scheduled_time"]:
 			event["started"] = true
 			event["active_status"] = true

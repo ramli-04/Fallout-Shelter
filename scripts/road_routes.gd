@@ -46,4 +46,4 @@ static func move(agent: Dictionary, seconds: float) -> Dictionary:
 		budget = maxf(0, budget - distance)
 		index += 1
 	agent["route_index"] = index
-	return {"arrived": index >= route.size(), "travel_seconds": (initial_budget - budget) / agent["movement_speed"]}
+	return {"arrived": index >= route.size(), "travel_seconds": (initial_budget - budget) / agent["movement_speed"] if agent["movement_speed"]>0 else 0.0}

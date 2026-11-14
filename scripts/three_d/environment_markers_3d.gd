@@ -15,7 +15,7 @@ func sync(events: Array, _director: bool = true) -> void:
 		marker.position = Coordinates.to_world(event["target_location"])
 		add_child(marker)
 		var color := Color("f3b456") if event["event_type"] != "crowd" else Color("ee7568")
-		var ring := Geometry.ring(marker,3.2,color)
+		var ring := Geometry.ring(marker,maxf(.5,float(event.get("radius",32))*.1),color)
 		ring.position.y = 0.05
 		Geometry.label(marker,event["event_type"].to_upper(),Vector3(0,5.5,0),color,30,0.025)
 		if event["event_type"] == "road":

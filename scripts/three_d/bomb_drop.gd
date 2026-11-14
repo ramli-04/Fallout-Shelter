@@ -24,6 +24,7 @@ func _ready() -> void:
 	add_child(bomb)
 	Geometry.cylinder(bomb,0.65,3.5,Vector3.ZERO,Color("444c42"))
 	var nose := Geometry.cylinder(bomb,0.65,0.9,Vector3(0,-2.1,0),Color("30382f"))
+	Geometry.make_mesh_unique(nose)
 	nose.mesh.bottom_radius = 0.05
 	Geometry.box(bomb,Vector3(2,0.7,0.12),Vector3(0,1.5,0),Color("686f54"))
 	Geometry.box(bomb,Vector3(0.12,0.7,2),Vector3(0,1.5,0),Color("686f54"))

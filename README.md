@@ -1,4 +1,50 @@
+# Living city and OpenJev
+
+Driving now obeys traffic lights, lane rules and safe following gaps, with validated
+OpenJev overtaking and emergency pavement escape. Streets have wider pedestrian
+pavements and larger street-facing buildings; road centerlines and widths are preserved.
+See [Traffic and streetscape](docs/TRAFFIC_STREETSCAPE.md) for controls and checks.
+
+The city now starts with indoor/outdoor routines, household travel, working doors,
+school pickup, and local OpenJev action selection. The default warning begins
+180 simulated seconds after starting; the Director can launch it earlier.
+See [setup, controls, behavior and validation](docs/LIVING_CITY.md).
+
+# Phase 6.2 ? Vehicle collisions and accident response
+
+Vehicles now use swept collisions, reserved non-overlapping parking spawns,
+impact damage and casualties, persistent wrecks, emergency dispatch and recovery.
+See [controls, configuration, assumptions and validation](docs/PHASE_62_VEHICLES.md).
+
 # ESSAIM — shared multi-LLM experiments
+
+## Current world: Phase 6.1 — Procedural City 2.0
+
+The playable city now defaults to **955 × 573 metres**, exactly **2× the previous
+area**, with seeded planar road junctions, wider boulevards, a connected raised
+highway, marked parking lots, and the original **Alder Court** cul-de-sac.
+Before starting, open **Settings → Procedural City** to change the seed, area
+or road widths, regenerate the city, and inspect districts, parking occupancy
+and the navigation graph. All five shelter sites remain connected.
+
+See [implementation, modified files, tests and measured performance](docs/PHASE_61_CITY.md).
+Vehicle physics remains deferred; this phase establishes and validates the road network.
+
+
+# Current runtime: Phase 5 social evacuation
+
+**100 agents by default: 65 civilians and 35 authorities.** Use **CONFIGURE
+SIMULATION** before starting to choose population, families, school students,
+synthetic IQ distribution, phones/social media, vehicles, providers and async/sync
+execution. The Director tab includes histograms, social/transport metrics and
+recorded replay. Default inference uses 30 adult LLM agents and 70 rule agents.
+
+Read [Phase 5 setup, implementation, actual validation and limitations](docs/PHASE_5.md).
+The local Python environment now needs NumPy and Shapely even when inference runs
+in Docker: `.\.venv\Scripts\python.exe -m pip install -r ai_service/requirements.txt`.
+Existing sirens, shelters, Director impact controls and nuclear damage remain.
+The Phase 4 and earlier descriptions below describe the historical presets.
+
 
 # Phase 4.5 valley world
 
@@ -164,3 +210,30 @@ are preserved but do not control the Godot game.
 The interface uses a full-window map with a warm-white, sage and charcoal palette. Press the play triangle to begin; the two bars pause. People, house and journal icons on the right toggle Agents, Shelters and Logs; selecting an entity opens its information automatically. All action buttons have descriptive hover tooltips. Bottom controls sit on a 50%-transparent toolbar with opaque icons. The gear opens Settings, containing seed input, apply-seed and random-scenario controls. The fullscreen icon or F11 toggles display mode. Escape closes the active panel.
 
 The scenario now has 150 agents, all configured for local llama3.2:1b, and shelter capacities reduced to one twentieth. See [population and scheduling notes](docs/POPULATION_AI.md) and [startup instructions](ai_service/README.md). Older Phase 3 reports describe the earlier one-agent milestone.
+
+## Local code knowledge graph
+
+Graphify is integrated as a separate development tool with GDScript support.
+Run `./tools/graphify.ps1 build`, then `./tools/graphify.ps1 open` to explore
+the project, or `./tools/graphify.ps1 query "vehicle collisions"` to query it.
+See [setup, commands and coverage](docs/GRAPHIFY.md).
+
+## Police emergency response (Phase 6)
+
+Existing police officers form two-officer patrol units. Roadblocks require an operational reason, road-network dispatch, physical arrival and deployment; removal and crew replacement also use real movement. Director settings include a police roster and per-request inspection, and active barriers are selectable. See [police architecture, controls and tests](docs/POLICE_RESPONSE.md).
+
+## Asset discovery and licensing
+
+See the [asset discovery report](docs/ASSET_DISCOVERY_REPORT.md), [preview gallery](docs/asset_discovery/gallery.html), [central catalog](docs/asset_discovery/catalog.json), and [licensing register](LICENSES.md). This research pass imports no new runtime assets.
+
+## Organized police evacuation (Phase 7)
+
+`POLICE_SHELTER_EVACUATION` coordinates existing patrols, gathering points, consenting civilian groups and real shelter admission. See [architecture, modified files, limitations and complete testing instructions](docs/POLICE_EVACUATION.md).
+
+## Seed-based procedural worlds
+
+The Director world panel generates organic, radial and mixed cities with four size presets, independent random streams, validated road/building/shelter access and versioned export/import. Population, scenario, event and behavior seeds can vary against the same saved world. See [controls, architecture, persistence, tests and limitations](docs/WORLD_GENERATION.md).
+
+## Advanced generation and visual streaming
+
+World generation now schedules dependency-aware modules and reserves shelters before roads. Detailed environment chunks, avatars and vehicle meshes stream independently of the full simulation and persistent physics. Camera-ray occlusion smoothly fades obstructing buildings/vaults and restores their materials. Press **F10** over the map for rendering metrics. See [architecture, configuration, benchmark results, file map and tests](docs/ADVANCED_MAP_RENDERING.md).

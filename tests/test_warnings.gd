@@ -16,13 +16,15 @@ func run() -> void:
 	var network: Node3D = app.map_view.siren_network
 	sim.set_process(false)
 	sim.ai_config["enabled"] = false
+	sim.social_config.llm_agents=0
 	sim.initialize_run()
 	for i in range(4): await physics_frame
 	check(sim.Warning.validate(sim.warning_config).is_empty(),"warning configuration validates")
 	var invalid: Dictionary = sim.warning_config.duplicate(true)
 	invalid["max_audible_sirens"] = 50
 	check(not sim.Warning.validate(invalid).is_empty(),"invalid channel cap rejected")
-	check(sim.sirens.size() == 43 and network.nodes.size() == sim.sirens.size(),"43 reusable physical sirens across expanded city")
+	var expected: int=3+range(180,int(sim.CityMap.MAP_SIZE.x),900).size()*range(180,int(sim.CityMap.MAP_SIZE.y),900).size()
+	check(sim.sirens.size()==expected and network.nodes.size()==sim.sirens.size(),"physical siren coverage scales with playable city")
 	for site in ["Police Station","Fire Station","School"]:
 		check(sim.sirens.any(func(s): return s["site"] == site and s["mount"] == "ROOFTOP"),"rooftop siren at "+site)
 	check(sim.sirens.any(func(s): return s["mount"] == "POLE"),"dedicated intersection towers")
@@ -122,7 +124,11 @@ func run() -> void:
 	check(network.nodes.size() == sim.sirens.size() and network.nodes.all(func(n): return not n.player.playing),"repeated test/reset does not accumulate loops")
 	check(sim.sirens.all(func(s): return s["state"] == "INACTIVE") and not network.explosion.playing and network.nodes.size() == sim.sirens.size(),"reset restores towers without duplicate players")
 	sim.launch_nuke(true)
-	sim.advance_clock(1000)
+	# This checks the expiry transition; the sampled 300-600 s duration is
+	# checked above. Avoid simulating unrelated social activity for 1000 s.
+	sim.elapsed_seconds=sim.alarm_started_seconds+sim.countdown_seconds-.1
+	sim.remaining_seconds=.1
+	sim.advance_clock(1)
 	check(sim.phase == "ALL_CLEAR" and sim.sirens.all(func(s): return s["state"] == "INACTIVE"),"false alarm clears sirens without blast")
 	sim.warning_config["siren_overrides"] = {"WS01":{"radius_world":75.0,"pitch":0.8,"volume_db":-20.0,"mechanical_rotation":false}}
 	sim.initialize_run()

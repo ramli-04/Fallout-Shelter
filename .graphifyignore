@@ -1,0 +1,15 @@
+# Keep dependency copies, private configuration and generated simulation data out.
+.git/
+.godot/
+.venv/
+.tools/
+.agents/
+.codex/
+graphify-out/
+outputs/
+__pycache__/
+.env
+.env.*
+assets/
+*.uid
+*.import

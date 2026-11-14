@@ -8,6 +8,7 @@ func _ready() -> void:
 	# Raised retaining apron contains a recessed stairwell; the approach ramp is level.
 	G.cylinder(self,5.6,0.55,Vector3(0,0.15,0),Color("929789"))
 	var pit := G.cylinder(self,3.5,0.08,Vector3(0,0.45,0),Color("1d2a2d"))
+	G.make_material_unique(pit)
 	pit.material_override.roughness = 1
 	for radius in [3.65,4.0,4.8]:
 		var ring := G.ring(self,radius,Color("b4b29a"))

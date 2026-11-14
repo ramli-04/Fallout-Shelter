@@ -1,0 +1,21 @@
+{
+  "green_seconds": 18.0,
+  "amber_seconds": 3.0,
+  "all_red_seconds": 2.0,
+  "headway_seconds": 1.4,
+  "minimum_gap": 14.0,
+  "passing_patience_seconds": 2.5,
+  "lane_change_units_per_second": 14.0,
+  "emergency_escape_enabled": true,
+  "pavement_max_speed": 28.0,
+  "ai_enabled": true,
+  "ai_interval_seconds": 12.0,
+  "urban_speed_limit": 100.0,
+  "residential_speed_limit": 70.0,
+  "highway_speed_limit": 190.0,
+  "country": "MA",
+  "traffic_side": "right",
+  "reverse_distance": 24.0,
+  "reverse_speed": 8.0,
+  "pull_over_speed": 6.0
+}

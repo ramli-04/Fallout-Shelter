@@ -1,0 +1,8 @@
+{
+  "max_dynamic_events": 64,
+  "status_message_reach": 0.9,
+  "default_event_radius": 60.0,
+  "explosion_damage": 35.0,
+  "fire_damage_per_second": 1.0,
+  "status_history_limit": 120
+}

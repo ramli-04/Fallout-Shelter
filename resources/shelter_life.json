@@ -1,0 +1,52 @@
+{
+  "duration_days": 10,
+  "decision_interval_seconds": 300.0,
+  "critical_decision_interval_seconds": 30.0,
+  "day_start_hour": 6.0,
+  "reflection_allowed": false,
+  "daily_windows": {
+    "wake": 6.0,
+    "breakfast": 7.0,
+    "work_start": 8.0,
+    "lunch": 12.0,
+    "rest": 13.0,
+    "recreation": 16.0,
+    "dinner": 19.0,
+    "social": 21.0,
+    "sleep": 23.0
+  },
+  "need_rates_per_hour": {
+    "hunger": 3.2,
+    "thirst": 4.0,
+    "fatigue_awake": 3.0,
+    "fatigue_sleep": -8.0,
+    "fatigue_rest": -3.0,
+    "stress_idle": 0.4,
+    "health_hunger_critical": -0.75,
+    "health_thirst_critical": -1.5
+  },
+  "activity_effects": {
+    "meal_hunger": -32.0,
+    "drink_thirst": -30.0,
+    "social_stress": -4.0,
+    "recreation_stress": -5.0,
+    "medical_health": 12.0,
+    "reflect_stress": -3.0,
+    "meal_person_days": 0.3333333333
+  },
+  "activity_durations_minutes": {
+    "sleep": 480,
+    "meal": 30,
+    "drink": 5,
+    "rest": 45,
+    "sanitation": 15,
+    "treatment": 30,
+    "conversation": 25,
+    "group": 60,
+    "work": 45,
+    "personal": 30,
+    "exercise": 35
+  },
+  "maximum_cognitive_requests": 2,
+  "cognitive_cooldown_seconds": 1800.0
+}

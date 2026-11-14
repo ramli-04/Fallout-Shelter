@@ -2,12 +2,21 @@ extends NavigationRegion3D
 ## Obstacle-aware raster surface matching free-space simulation movement.
 const Coordinates = preload("res://scripts/three_d/world_coordinates.gd")
 const Map = preload("res://scripts/city_map.gd")
-const CELL := 90.0
+const CELL := 30.0
 var walkable_rects: Array[Rect2] = []
+var revision := -1
+var rebuild_age := 0.0
 
 func _ready() -> void:
 	name = "PedestrianNavigation"
 	navigation_mesh = create_mesh()
+	revision=Map.navigation_revision
+
+func _process(delta: float) -> void:
+	if revision==Map.navigation_revision: return
+	rebuild_age+=delta
+	if rebuild_age<.25: return
+	navigation_mesh=create_mesh(); revision=Map.navigation_revision; rebuild_age=0
 
 func create_mesh() -> NavigationMesh:
 	var vertices := PackedVector3Array()
@@ -18,7 +27,7 @@ func create_mesh() -> NavigationMesh:
 		for y in range(int(Map.MAP_SIZE.y/CELL)):
 			var rect := Rect2(Vector2(x,y)*CELL,Vector2.ONE*CELL)
 			var valid := true
-			for obstacle in Map.lots+[Map.lake]+Map.rock_obstacles:
+			for obstacle in Map.obstacles_near(rect.grow(14),true)+Map.closures.values():
 				if rect.intersects(obstacle.grow(14)): valid = false; break
 			if not valid: continue
 			var polygon := PackedInt32Array()
@@ -45,6 +54,16 @@ func path_between(start: Vector3, destination: Vector3) -> PackedVector3Array:
 	for point in Map.free_route(Coordinates.to_simulation(start),Coordinates.to_simulation(destination)):
 		result.append(Coordinates.to_world(point))
 	return result
+
+func server_path_between(start: Vector3, destination: Vector3) -> PackedVector3Array:
+	# Godot's default 4096-polygon query budget truncates cross-city paths on a
+	# street-scale raster. Bound the search by this generated mesh's size.
+	var parameters:=NavigationPathQueryParameters3D.new()
+	parameters.map=get_navigation_map(); parameters.start_position=start; parameters.target_position=destination
+	parameters.path_search_max_polygons=navigation_mesh.get_polygon_count()+1
+	var result:=NavigationPathQueryResult3D.new()
+	NavigationServer3D.query_path(parameters,result)
+	return result.path
 
 func show_debug_surface() -> void:
 	var mesh := MeshInstance3D.new()

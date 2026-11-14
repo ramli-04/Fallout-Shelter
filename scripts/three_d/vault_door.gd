@@ -10,6 +10,7 @@ func _ready() -> void:
 	plate = Node3D.new()
 	add_child(plate)
 	var disk := Geometry.cylinder(plate,2.0,0.55,Vector3.ZERO,Color("79858a"))
+	Geometry.make_material_unique(disk)
 	disk.rotation.x = PI/2
 	disk.material_override.metallic = 0.8
 	disk.material_override.roughness = 0.7

@@ -1,0 +1,7 @@
+{
+  "family_follow_distance": 28.0,
+  "family_separation_distance": 65.0,
+  "boarding_timeout_seconds": 45.0,
+  "missing_member_wait_seconds": 15.0,
+  "fatigue_rest_threshold": 80.0
+}

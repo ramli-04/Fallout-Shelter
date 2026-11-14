@@ -10,6 +10,8 @@ from ai_service.runtime import AsyncRuntime
 from ai_service.async_providers import LLMProvider
 from ai_service.events import Ledger
 from tests.test_ai_service import packet
+from ai_service.schemas import Decision
+from ai_service.langgraph_decisions import InvalidDecisionResponse
 
 ANSWER = json.dumps(dict(action='MOVE_TO_SHELTER', target='S5', message='', reason='Check rumor', confidence=.8))
 
@@ -33,7 +35,23 @@ class Phase4Tests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, json={'message': {'content': ANSWER}, 'eval_count': 10})
         self.config = {g: dict(provider='ollama', model='test', url='http://test', concurrency=10) for g in 'ABC'}
         providers = {g: LLMProvider(c, httpx.AsyncClient(transport=httpx.MockTransport(handler))) for g,c in self.config.items()}
-        self.runtime = AsyncRuntime(self.config, providers, Ledger(str(Path(self.tmp.name)/'ledger.sqlite')))
+        def mock_model_factory(provider):
+            class MockStructuredModel:
+                async def ainvoke(self, prompt_value):
+                    messages = prompt_value.to_messages()
+                    text, usage = await provider.generate_decision(messages[0].content, messages[1].content)
+                    try:
+                        parsed = Decision.model_validate_json(text)
+                    except ValueError as error:
+                        raise InvalidDecisionResponse("test adapter received invalid output") from error
+                    class Raw:
+                        content = text
+                        usage_metadata = dict(input_tokens=usage[0], output_tokens=usage[1])
+                        response_metadata = {}
+                    return dict(parsed=parsed, raw=Raw())
+            return MockStructuredModel()
+        self.runtime = AsyncRuntime(self.config, providers,
+            Ledger(str(Path(self.tmp.name)/'ledger.sqlite')), cognitive_model_factory=mock_model_factory)
 
     async def asyncTearDown(self):
         self.release.set()
@@ -45,6 +63,23 @@ class Phase4Tests(unittest.IsolatedAsyncioTestCase):
         p = packet(f'A{i:03}')
         p['group'] = group
         return p
+
+    async def test_social_history_fits_private_prompt_budget(self):
+        request=self.request()
+        obs=request['observation']
+        obs['social_beliefs']={f'claim:{i}':dict(subject=f'claim:{i}',claimed_value='x'*800,
+            source='family',confidence=.5,evidence='text',status='RUMORED',last_update=i) for i in range(32)}
+        obs['received_phone_messages']=[dict(sender='A001',recipient='A000',channel='text',
+            content=dict(subject='school',value='y'*800)) for _ in range(8)]
+        obs['known_family_locations']={f'A{i:03}':dict(position=[i,0],source='z'*800,
+            timestamp=i,confidence=.5) for i in range(20)}
+        obs['hidden_world']='DO_NOT_EXPOSE'
+        self.release.set()
+        result=await self.runtime.decide(request)
+        self.assertIn('decision',result)
+        payload=self.seen[-1]['messages'][-1]['content']
+        self.assertLessEqual(len(payload),4500)
+        self.assertNotIn('DO_NOT_EXPOSE',payload)
 
     async def test_thirty_independent_requests_and_memory_privacy(self):
         requests = [self.request(i, 'ABC'[i//10]) for i in range(30)]
@@ -88,6 +123,21 @@ class Phase4Tests(unittest.IsolatedAsyncioTestCase):
         self.runtime.invalid_runs.add(p['run_id'])
         self.release.set()
         self.assertTrue((await task)['fallback'])
+
+    async def test_newer_observation_rejects_stale_graph_result(self):
+        original = self.request()
+        task = asyncio.create_task(self.runtime.decide(original))
+        await asyncio.sleep(.01)
+        updated = self.request()
+        updated['request_id'] = '2'
+        updated['observation']['goal'] = 'newer observation'
+        from ai_service.engine import BusyError
+        with self.assertRaises(BusyError):
+            await self.runtime.decide(updated)
+        self.release.set()
+        result = await task
+        self.assertTrue(result['fallback'])
+        self.assertEqual(self.runtime.metrics['stale'], 1)
 
     async def test_missing_cloud_credentials_safe(self):
         provider = LLMProvider(dict(provider='gemini', model='configured-model', url='http://test', key_env='ABSENT_ESSAIM_KEY'))

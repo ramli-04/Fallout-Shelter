@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/Graphify-Labs/graphify.git",
+  "revision": "59b5ab1151e031fb42e39cfc9a50bf96f2d57ae0",
+  "version": "0.9.102",
+  "language_pack_version": "0.11.0",
+  "output": "graphify-out"
+}

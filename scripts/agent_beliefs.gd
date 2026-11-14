@@ -12,6 +12,7 @@ static func initialize(definitions: Array, rng: RandomNumberGenerator, config: D
 		var size: String = config["size_descriptions"][definition["id"]]
 		var estimate := int(float(config["capacity_estimates"][size]) * rng.randf_range(1-config["capacity_estimate_variation"], 1+config["capacity_estimate_variation"]))
 		result[definition["id"]] = {"position": Vector2(definition["position"][0], definition["position"][1]),
+			"subject":definition["id"], "claimed_value":"Rumored site" if definition["id"]=="S5" else "Approximate public shelter", "acquired_at":0.0, "status":"RUMORED" if definition["id"]=="S5" else "BELIEVED",
 			"capacity": estimate, "capacity_exact": false, "size_description": size,
 			"estimated_occupancy": 0, "resource_score": definition["resource_score"],
 			"risk": definition["known_risk"], "popularity": definition["popularity"],
@@ -26,23 +27,28 @@ static func initialize(definitions: Array, rng: RandomNumberGenerator, config: D
 static func observe(agent: Dictionary, shelter: Dictionary, time: float, config: Dictionary) -> bool:
 	if agent["position"].distance_to(shelter["position"]) > float(config["observation_radius"]):
 		return false
+	if shelter.get("hidden_until_discovered",false):
+		shelter.discovered=true; shelter.observer_masked=false
 	var belief: Dictionary = agent["beliefs"][shelter["id"]]
-	var signature := "%s:%s:%s:%s:%d" % [shelter["exists"], shelter["operational"], shelter["door_status"], shelter["infested"], shelter["occupancy"]]
+	var signature := str([shelter.exists,shelter.operational,shelter.door_status,shelter.infested,shelter.occupancy,shelter.get("safety_status","SAFE"),shelter.get("accessible",true)])
 	if belief.get("observation_signature", "") == signature:
 		return false
 	belief["observation_signature"] = signature
+	belief["status"]="KNOWN"; belief["acquired_at"]=time; belief["claimed_value"]="Present" if shelter["exists"] else "Absent"
 	belief["existence_probability"] = 1.0 if shelter["exists"] else 0.0
 	belief["capacity"] = shelter["capacity"]
 	belief["capacity_exact"] = true
 	belief["estimated_occupancy"] = shelter["occupancy"]
-	belief["unavailable"] = not shelter["operational"] or shelter["door_status"] != "OPEN" or shelter["occupancy"] >= shelter["capacity"]
+	belief["unavailable"] = not shelter["operational"] or shelter["door_status"] != "OPEN" or shelter["occupancy"] >= shelter["capacity"] or not shelter.get("accessible",true) or shelter.get("safety_status","SAFE") in ["UNSAFE","DESTROYED"]
+	belief["accessible"]=shelter.get("accessible",true)
+	belief["safety_status"]=shelter.get("safety_status","SAFE")
 	belief["confidence"] = 1.0
 	belief["observed_at"] = time
 	belief["last_update_time"] = time
 	belief["evidence_type"] = "direct_observation"
 	belief["original_source"] = agent["id"]
 	belief["source"] = "Direct observation at %.1fs" % time
-	belief["risk"] = maxf(belief["risk"], 0.65) if shelter["infested"] else float(shelter["known_risk"])
+	belief["risk"] = 1.0 if shelter.get("safety_status","SAFE") in ["UNSAFE","DESTROYED"] else maxf(belief["risk"],.65) if shelter.infested else float(shelter.known_risk)
 	var text := "%s: %s; entrance %s; occupancy %d/%d%s" % [shelter["id"], "present" if shelter["exists"] else "ABSENT", shelter["door_status"], shelter["occupancy"], shelter["capacity"], "; rats observed" if shelter["infested"] else ""]
 	remember(agent, time, text, config)
 	return true

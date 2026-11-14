@@ -1,0 +1,1 @@
+{"spawn_attempts":256,"spawn_clearance":2.0,"minimum_impact_mps":1.5,"vehicle_damage_per_mps":9.0,"occupant_damage_per_mps":5.0,"pedestrian_damage_per_mps":12.0,"treatment_per_second":1.0,"recovery_enabled":true,"recovery_seconds":120.0,"injury_model":"Simplified simulation assumptions, not medically validated predictions"}

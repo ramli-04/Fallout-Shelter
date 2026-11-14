@@ -1,0 +1,62 @@
+{
+  "format_version": 1,
+  "generator_version": "essaim-world-4",
+  "straight_road_ratio": 0.7,
+  "default_preset": "medium",
+  "max_attempts": 4,
+  "presets": {
+    "small": {
+      "size": [
+        6750,
+        4250
+      ],
+      "district_density": 0.8,
+      "max_buildings": 250,
+      "vegetation_density": 0.7,
+      "max_props": 60,
+      "parking_lots": 16
+    },
+    "medium": {
+      "size": [
+        9500,
+        5900
+      ],
+      "district_density": 1.0,
+      "max_buildings": 600,
+      "vegetation_density": 1.0,
+      "max_props": 120,
+      "parking_lots": 20
+    },
+    "large": {
+      "size": [
+        12200,
+        7900
+      ],
+      "district_density": 1.1,
+      "max_buildings": 900,
+      "vegetation_density": 1.2,
+      "max_props": 180,
+      "parking_lots": 28
+    },
+    "very_large": {
+      "size": [
+        15000,
+        11000
+      ],
+      "district_density": 1.2,
+      "max_buildings": 1300,
+      "vegetation_density": 1.3,
+      "max_props": 240,
+      "parking_lots": 40
+    }
+  },
+  "stage_priorities": {
+    "geography": 100,
+    "districts": 80,
+    "shelters": 1000,
+    "layout": 90,
+    "infrastructure": 80,
+    "environment": 10,
+    "validation": 1000
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "tile_size": 40.0,
+  "chunk_tiles": 30,
+  "asset_modules": {
+    "road": [
+      2,
+      2
+    ],
+    "sidewalk": [
+      1,
+      1
+    ],
+    "tree": [
+      1,
+      1
+    ],
+    "prop": [
+      1,
+      1
+    ],
+    "hedge": [
+      2,
+      1
+    ],
+    "parking_space": [
+      1,
+      2
+    ],
+    "bus_stop": [
+      1,
+      2
+    ],
+    "mailbox": [
+      1,
+      1
+    ],
+    "bin": [
+      1,
+      1
+    ]
+  }
+}

@@ -129,17 +129,24 @@ class EventBus:
             self.last_error = type(error).__name__
             # Uncommitted offsets replay using durable decision IDs after restart.
 
-    async def publish(self, topic, payload, run='', agent='', correlation=''):
+    async def publish(self, topic, payload, run='', agent='', correlation='', event_type=None):
         if self.producer is None:
-            return
+            return False
         identity = hashlib.sha256(json.dumps([topic, run, agent, correlation, payload], sort_keys=True).encode()).hexdigest()
-        event = dict(event_id=identity, run_id=run, agent_id=agent,
+        event = dict(schema_version=1, event_type=event_type or {
+                         'agent.observations':'agent.observation',
+                         'agent.decisions':'agent.decision'}.get(topic, topic),
+                     simulation_timestamp=payload.get('simulation_timestamp',payload.get('simulation_time',0)),
+                     source_entity=agent or 'service', wall_timestamp=datetime.now(timezone.utc).isoformat(),
+                     event_id=identity, run_id=run, agent_id=agent,
                      correlation_id=correlation, timestamp=datetime.now(timezone.utc).isoformat(), payload=payload)
         try:
             await asyncio.wait_for(self.producer.send_and_wait('essaim.' + topic,
                 key=(agent or run).encode(), value=json.dumps(event, allow_nan=False).encode()), 3)
+            return True
         except Exception:
             self.status = 'DEGRADED'
+            return False
 
     async def close(self):
         result_task = getattr(self, 'result_task', None)

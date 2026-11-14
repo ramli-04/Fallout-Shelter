@@ -5,6 +5,37 @@
 are retained for legacy tests and historical tooling, not production dispatch.
 Use the Phase 4 Compose commands to enable Kafka. Cloud calls are disabled by default.
 
+## LangChain and LangGraph cognition
+
+The async runtime uses the `langgraph` cognitive workflow by default. Set
+`ESSAIM_COGNITIVE_ENGINE=legacy` to select the earlier single-prompt path during
+comparison or recovery. The LangGraph nodes observe, retrieve private memory,
+retain belief provenance, evaluate needs, route to a situation branch, plan,
+select one structured action, validate it through permission-checked LangChain
+tools, and commit the existing Godot decision contract.
+
+LangChain's `init_chat_model` adapts the configured Ollama, Gemini, OpenAI, and
+OpenAI-compatible providers. The existing provider checks, cloud opt-in,
+concurrency, request/token budgets, health status, and Godot-side action checks
+remain in force. Cloud providers still require `ESSAIM_CLOUD_ENABLED=true`,
+`ESSAIM_LOCAL_ONLY=false`, and credentials. Provider errors, invalid output,
+stale results, or exhausted capacity use the existing deterministic Godot
+fallback path. Pending inference does not stop physical simulation.
+
+Each graph invocation has ephemeral run/agent state and receives only the
+validated private observation plus that actor's bounded memory. Retrieval uses
+a local lexical retriever over that agent's memories, known shelter beliefs,
+known road/traffic claims, delivered messages, and public procedure notes. Every
+retrieved item includes provenance. The private map view contains only facts
+the agent already knows; it never includes the complete Godot map. No embedding
+service, cloud vector store, or LangSmith tracing is enabled by default.
+
+When Kafka is enabled, the runtime publishes observations, belief provenance,
+communications, authority orders, decisions, and Godot-reported vehicle,
+shelter, and other world events. Events include schema version, simulation and
+wall timestamps, run ID, source, and correlation ID. Physical consequences
+remain Godot-owned.
+
 ## Historical Phase 3 setup
 
 Current default: **30 heterogeneous agents**, a shared three-model pool and a

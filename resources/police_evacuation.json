@@ -1,0 +1,19 @@
+{
+  "automatic_requests": true,
+  "automatic_request_interval": 5.0,
+  "minimum_observed_civilians": 4,
+  "planning_interval": 1.0,
+  "instruction_interval": 5.0,
+  "communication_radius": 45.0,
+  "search_stride": 100.0,
+  "recruitment_seconds": 90.0,
+  "cooperation_threshold": 42.0,
+  "group_size": 8,
+  "regroup_radius": 28.0,
+  "regroup_seconds": 12.0,
+  "follow_distance": 18.0,
+  "leash_distance": 90.0,
+  "family_wait_seconds": 20.0,
+  "large_operation_size": 16,
+  "max_operations": 8
+}

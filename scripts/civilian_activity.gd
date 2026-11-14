@@ -7,7 +7,7 @@ const Beliefs = preload("res://scripts/agent_beliefs.gd")
 static func initialize(manager: Node, agent: Dictionary) -> void:
 	agent["run_speed"] = agent["movement_speed"]
 	agent["walk_speed"] = agent["movement_speed"]*manager.activity_config["walking_speed_fraction"]
-	agent["appearance_seed"] = manager.seed_value+int(str(agent["id"]).substr(1))*917
+	agent["appearance_seed"] = manager.seed_for("population")+int(agent.get("population_index",0))*917
 	agent["activity_counter"] = 0
 	agent["free_movement"] = true
 	agent["next_push_time"] = 0.0

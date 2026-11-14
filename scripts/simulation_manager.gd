@@ -46,6 +46,10 @@ var elapsed_seconds := 0.0
 var running := false
 var simulation_speed := 1.0
 var phase := "PREPARATION"
+var post_impact_started_seconds := 0.0
+var post_impact_end_seconds := 0.0
+var survival = preload("res://scripts/survival_lifecycle.gd").new()
+var post_impact_complete := false
 var countdown_seconds := 0
 var remaining_seconds := 0.0
 var summary: Dictionary = {}
@@ -61,14 +65,29 @@ var ai_config: Dictionary = {}
 var ai_bridge: Node
 var activity_config: Dictionary = {}
 var bomb_fall_elapsed := 0.0
+var social_config: Dictionary = {}
+var social: RefCounted
+var emergency=preload("res://scripts/emergency_management.gd").new()
+var social_population: Dictionary = {}
+var phase5_enabled := true
+var last_setup_error := ""
+var city_settings: Dictionary = {}
+var world=preload("res://scripts/world_generation_manager.gd").new()
+# -1 inherits the existing master scenario seed for backwards compatibility.
+var experiment_seeds: Dictionary={"population":-1,"scenario":-1,"events":-1,"behavior":-1}
 
 func _ready() -> void:
+	add_child(world)
+	world.completed.connect(func(success: bool):
+		if success: initialize_run()
+		else: _fail(world.error))
 	ai_bridge = preload("res://scripts/llm_bridge.gd").new()
 	add_child(ai_bridge)
 	ai_bridge.configure(self)
 
 
 func load_settings(path: String = CONFIG_PATH) -> bool:
+	city_settings=CityMap.default_settings()
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return _fail("Cannot open %s. Check that the configuration file exists." % path)
@@ -84,13 +103,18 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 	var nuclear_error := Blast.validate(nuclear_data)
 	if not nuclear_error.is_empty(): return _fail(nuclear_error)
 	nuclear = nuclear_data
-	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear["map_scale"])
+	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear["map_scale"])*sqrt(float(city_settings.area_multiplier))
 	var ai_data: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://resources/ai_config.json"))
 	if not ai_data is Dictionary:
 		return _fail("Invalid resources/ai_config.json")
 	ai_config = ai_data
 	activity_config = JSON.parse_string(FileAccess.get_file_as_string("res://resources/agent_activity.json"))
-	var preset_error: String = preload("res://scripts/llm_experiments.gd").apply(settings, ai_config)
+	phase5_enabled = bool(ai_config.get("phase5_enabled", true)) and not OS.get_cmdline_user_args().has("--legacy-runtime")
+	social_config = preload("res://scripts/social_config.gd").defaults()
+	if phase5_enabled:
+		settings["agent_count"] = social_config.total
+		settings["authority_count"] = social_config.authorities
+	var preset_error: String = "" if phase5_enabled else preload("res://scripts/llm_experiments.gd").apply(settings, ai_config)
 	if not preset_error.is_empty(): return _fail(preset_error)
 	for key in ["max_concurrent_requests", "queue_limit", "per_model_concurrency"]:
 		var bound: Variant = ai_config.get(key, 128 if key == "queue_limit" else 1)
@@ -137,6 +161,7 @@ func load_settings(path: String = CONFIG_PATH) -> bool:
 
 
 func _fail(message: String) -> bool:
+	last_setup_error=message
 	push_error(message)
 	setup_failed.emit(message)
 	return false
@@ -191,6 +216,32 @@ static func validate_living(data: Dictionary) -> String:
 
 
 func initialize_run() -> void:
+	if world.busy: return
+	last_setup_error=""
+	if not phase5_enabled and social!=null: social.close(); social=null
+	if phase5_enabled and not social_config.is_empty():
+		social_config.seed = seed_for("population")
+		var config_error: String = preload("res://scripts/social_config.gd").validate(social_config)
+		if not config_error.is_empty():
+			_fail(config_error)
+			return
+		social_population = preload("res://scripts/social_config.gd").population(social_config)
+		if social_population.is_empty():
+			_fail("Could not generate NumPy population; check Python dependencies")
+			return
+		var world_defaults: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://resources/living_world.json"))
+		for key in living.event_probabilities: living.event_probabilities[key] = clampf(world_defaults.event_probabilities[key]*social_config.event_frequency,0,1)
+		settings.agent_count = social_config.total
+		settings.authority_count = social_config.authorities
+		settings.simulation_speed = social_config.simulation_speed
+		settings.evacuation.countdown_range = [social_config.warning_min,social_config.warning_max]
+		ai_config.enabled = social_config.llm_agents>0
+		ai_config.experiment_preset = "social_"+str(int(social_config.total))
+		ai_config.llm_agent_count = social_config.llm_agents
+		ai_config.max_concurrent_requests = social_config.concurrency
+		ai_config.decision_interval_seconds = social_config.inference_interval
+		ai_config.execution_mode = social_config.execution_mode
+		nuclear.random_impact = social_config.random_impact
 	if settings.is_empty():
 		return
 	for index in range(archive_workers.size()-1,-1,-1):
@@ -200,10 +251,26 @@ func initialize_run() -> void:
 			archive_workers.remove_at(index)
 	if ai_bridge != null:
 		ai_bridge.reset_run()
+	survival.reset(self)
 	running = false
 	phase = "PREPARATION"
-	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear.get("map_scale",2.5))
-	CityMap.generate(seed_value)
+	post_impact_started_seconds=0.0; post_impact_end_seconds=0.0; post_impact_complete=false
+	CityMap.MAP_SIZE = Vector2(1800,1080)*float(nuclear.get("map_scale",3.75))*sqrt(float(city_settings.get("area_multiplier",2.0)))
+	var parking_count:=12
+	if phase5_enabled:
+		var vehicle_demand: int=social_population.agents.filter(func(a): return a.owns_vehicle).size()+int(social_config.police_vehicles+social_config.ambulances+social_config.fire_trucks+social_config.civil_protection_vehicles)
+		parking_count=maxi(1,ceili(float(vehicle_demand)/6))
+	var generation_options: Dictionary=city_settings.duplicate(true)
+	generation_options.size=[CityMap.MAP_SIZE.x,CityMap.MAP_SIZE.y]
+	var map_ready: bool=world.apply(city_settings) if not world.current.is_empty() else CityMap.generate(seed_value,parking_count,generation_options)
+	if not map_ready:
+		_fail(world.error if not world.current.is_empty() else CityMap.generation_error)
+		return
+	if not world.current.is_empty() and int(CityMap.validation.parking_spaces)<parking_count*6:
+		_fail("Generated world has too few vehicle bays for this population; choose a larger preset."); return
+	last_setup_error=""
+	var impact: Vector2=Vector2(nuclear.impact_position[0],nuclear.impact_position[1]).clamp(Vector2.ZERO,CityMap.MAP_SIZE)
+	nuclear.impact_position=[impact.x,impact.y]
 	for definition in settings["shelters"]:
 		var site: Vector2 = CityMap.sites[definition["id"]]
 		definition["position"] = [site.x, site.y]
@@ -235,10 +302,10 @@ func initialize_run() -> void:
 	next_contact_seconds = 0.0
 	alarm_started_seconds = 0.0
 	var alarm_rng := RandomNumberGenerator.new()
-	alarm_rng.seed = seed_value + 7081
+	alarm_rng.seed = seed_for("scenario") + 7081
 	alarm_is_real = alarm_rng.randf() >= living["false_alarm_probability"]
 	var countdown_rng := RandomNumberGenerator.new()
-	countdown_rng.seed = seed_value + 2027
+	countdown_rng.seed = seed_for("scenario") + 2027
 	countdown_seconds = countdown_rng.randi_range(int(settings["evacuation"]["countdown_range"][0]), int(settings["evacuation"]["countdown_range"][1]))
 	remaining_seconds = countdown_seconds
 	agents.clear()
@@ -246,13 +313,13 @@ func initialize_run() -> void:
 	events.clear()
 	# Dedicated streams keep S5 independent of population/profile changes.
 	var shelter_rng := RandomNumberGenerator.new()
-	shelter_rng.seed = seed_value
+	shelter_rng.seed = seed_for("scenario")
 	var agent_rng := RandomNumberGenerator.new()
-	agent_rng.seed = seed_value + 1009
+	agent_rng.seed = seed_for("population") + 1009
 	var belief_rng := RandomNumberGenerator.new()
-	belief_rng.seed = seed_value + 3037
+	belief_rng.seed = seed_for("population") + 3037
 	var profile_rng := RandomNumberGenerator.new()
-	profile_rng.seed = seed_value + 6067
+	profile_rng.seed = seed_for("population") + 6067
 	var order: Array = Personality.TYPES.duplicate()
 	for i in range(order.size()-1, 0, -1):
 		var j := profile_rng.randi_range(0, i)
@@ -260,27 +327,34 @@ func initialize_run() -> void:
 		order[i] = order[j]
 		order[j] = value
 	var supply_rng := RandomNumberGenerator.new()
-	supply_rng.seed = seed_value + 8081
+	supply_rng.seed = seed_for("scenario") + 8081
 	log_event("SYSTEM", "Run initialized • seed %d • Preparation" % seed_value)
 	for definition in settings["shelters"]:
 		var shelter: Dictionary = definition.duplicate(true)
 		shelter["capacity"] = int(shelter["capacity"])
+		if not world.current.is_empty(): shelter.capacity=int(world.current.shelters[shelter.id].capacity)
 		var coordinates: Array = shelter["position"]
 		shelter["position"] = Vector2(coordinates[0], coordinates[1])
 		var probability: float = shelter["existence_probability"]
 		# S5 is sampled here exactly once per initialization. Reset repeats the seed.
 		shelter["exists"] = shelter_rng.randf() < probability if probability > 0 and probability < 1 else probability == 1
+		if not world.current.is_empty(): shelter.exists=bool(world.current.shelters[shelter.id].exists)
 		shelter["occupancy"] = 0
 		shelter["occupant_ids"] = []
 		shelter["accepting"] = true
 		shelter["operational"] = bool(definition["operational"]) and shelter["exists"]
 		ShelterState.initialize(shelter, supply_rng, living)
+		if shelter.id=="S5" and not world.current.is_empty():
+			shelter.hidden_until_discovered=true; shelter.discovered=false; shelter.observer_masked=true
 		shelter["structural_state"] = "INTACT" if shelter["exists"] else "ABSENT"
 		shelter["blast_resistance"] = definition.get("blast_resistance",1.3)
 		shelter["terrain_protection"] = definition.get("terrain_protection",0.25 if shelter["id"] == "S4" else 0.0)
 		shelters.append(shelter)
 		shelter_by_id[shelter["id"]] = shelter
-		log_event("SHELTER", "%s initialized • %s • capacity %d" % [shelter["id"], "present" if shelter["exists"] else "absent", shelter["capacity"]], "director")
+		if shelter.get("hidden_until_discovered",false):
+			log_event("SHELTER", "S5 rumored site initialized; existence and capacity unverified.", "director")
+		else:
+			log_event("SHELTER", "%s initialized • %s • capacity %d" % [shelter["id"], "present" if shelter["exists"] else "absent", shelter["capacity"]], "director")
 	var slots: Array[Vector2] = CityMap.spawn_slots()
 	# Reserve each shelter plaza, including S5's possible site.
 	for index in range(slots.size() - 1, -1, -1):
@@ -331,12 +405,12 @@ func initialize_run() -> void:
 		agent["companion_id"] = "A%03d" % (((index + 1) % int(settings["agent_count"])) + 1)
 		agents.append(agent)
 	# Apply experiment identities after legacy initialization without discarding minds.
-	if ai_config.get("experiment_preset", "legacy") != "legacy":
+	if not phase5_enabled and ai_config.get("experiment_preset", "legacy") != "legacy":
 		var experiments = preload("res://scripts/llm_experiments.gd")
-		var tiers: Array = experiments.assignments(agents.size(), seed_value, ai_config)
-		var roles: Array = experiments.roles(agents.size(), int(settings["authority_count"]), seed_value)
+		var tiers: Array = experiments.assignments(agents.size(), seed_for("population"), ai_config)
+		var roles: Array = experiments.roles(agents.size(), int(settings["authority_count"]), seed_for("population"))
 		var location_rng := RandomNumberGenerator.new()
-		location_rng.seed = seed_value + 27011
+		location_rng.seed = seed_for("population") + 27011
 		for i in range(agents.size()):
 			var agent: Dictionary = agents[i]
 			agent["role"] = roles[i]
@@ -349,10 +423,15 @@ func initialize_run() -> void:
 	for agent in agents:
 		Activity.initialize(self,agent)
 		log_event("AGENT", "%s spawned / %s / position (%d, %d) / model %s" % [agent["id"], agent["role"], agent["position"].x, agent["position"].y, agent.get("model_tier", "llama3.2:1b")])
+	if phase5_enabled:
+		if social!=null: social.close()
+		social = preload("res://scripts/social_simulation.gd").new()
+		social.initialize(self,social_population)
 	Warning.initialize(self)
 	next_warning_observation = 0.0
 	Rumors.initialize(agents)
-	environment_events = Incidents.schedule(seed_value, shelters, countdown_seconds, living)
+	environment_events = Incidents.schedule(seed_for("events"), shelters, countdown_seconds, living)
+	emergency.initialize(self)
 	log_event("DIRECTOR", "Hidden warning duration %ds; alarm %s; %d incidents scheduled." % [countdown_seconds, "real" if alarm_is_real else "false", environment_events.size()], "director")
 	log_event("SYSTEM", "Ready. Start simulation activates the city; Launch nuke sounds the siren.")
 	run_initialized.emit()
@@ -361,12 +440,17 @@ func initialize_run() -> void:
 
 
 func start() -> void:
-	if running or agents.is_empty() or phase in ["IMPACT", "ALL_CLEAR"]:
+	if world.busy: return
+	if not last_setup_error.is_empty() or not CityMap.validation.get("valid",false): return
+	if social != null and social.replaying: return
+	if running or agents.is_empty() or phase=="ALL_CLEAR" or (phase=="IMPACT" and post_impact_complete):
 		return
 	running = true
 	if phase == "PREPARATION":
 		phase = "LIVING"
 		log_event("SYSTEM", "City simulation started. No emergency alarm.")
+	elif phase=="IMPACT":
+		log_event("CLOCK","Shelter simulation resumed.")
 	else:
 		log_event("CLOCK", "Evacuation resumed.")
 	clock_changed.emit(elapsed_seconds, running)
@@ -374,6 +458,7 @@ func start() -> void:
 
 
 func launch_nuke(force_false: bool = false) -> void:
+	if not last_setup_error.is_empty() or not CityMap.validation.get("valid",false): return
 	if phase not in ["PREPARATION", "LIVING"] or agents.is_empty():
 		return
 	if force_false:
@@ -390,6 +475,7 @@ func launch_nuke(force_false: bool = false) -> void:
 		agent["route_index"] = 0
 		_set_state(agent,"IDLE")
 	Warning.activate(self,true)
+	if social != null: social.warning()
 	siren_activated.emit()
 	Warning.perceive(self)
 	next_warning_observation = elapsed_seconds+0.5
@@ -399,34 +485,47 @@ func launch_nuke(force_false: bool = false) -> void:
 
 
 func pause() -> void:
+	if survival.fast_forward: accumulator=0
+	survival.fast_forward=false
 	if not running:
 		return
 	running = false
-	log_event("CLOCK", "Evacuation paused.")
+	log_event("CLOCK", "Shelter simulation paused." if phase=="IMPACT" else "Evacuation paused.")
 	clock_changed.emit(elapsed_seconds, running)
 
 
 func _process(delta: float) -> void:
+	if social!=null and not social.replaying: social.flush_events()
 	advance_clock(delta)
 
 
 func advance_clock(delta: float) -> void:
-	if not running or phase not in ["LIVING", "EVACUATION", "BOMB_FALL"] or delta <= 0 or not is_finite(delta):
+	if ai_config.get("execution_mode","async")=="sync" and ai_bridge!=null and (not ai_bridge.pending.is_empty() or not ai_bridge.shelter_pending.is_empty()): return
+	if not running or phase not in ["LIVING", "EVACUATION", "BOMB_FALL", "IMPACT"] or (phase=="IMPACT" and post_impact_complete) or delta <= 0 or not is_finite(delta):
 		return
 	var falling := phase == "BOMB_FALL"
 	if falling:
 		delta = minf(delta, float(activity_config["bomb_fall_seconds"])-bomb_fall_elapsed)
 		bomb_fall_elapsed += delta
 	accumulator += delta * simulation_speed
+	if phase=="IMPACT" and survival.fast_forward: accumulator=maxf(accumulator,64.0)
 	if phase == "EVACUATION":
 		accumulator = minf(accumulator, remaining_seconds)
 	var step: float = settings["evacuation"]["fixed_step_seconds"]
-	while running:
+	if phase=="IMPACT": step=1.0
+	var steps:=0
+	var frame_started:=Time.get_ticks_usec()
+	while running and (phase!="IMPACT" or steps<128):
+		if phase=="IMPACT" and steps>0 and Time.get_ticks_usec()-frame_started>12000: break
+		steps+=1
 		var duration := minf(step, remaining_seconds) if phase == "EVACUATION" else step
+		if phase=="IMPACT" and survival.started:
+			duration=minf(duration,maxf(0.000001,survival.next_boundary()-elapsed_seconds))
 		if accumulator + 0.0000001 < duration:
 			break
 		accumulator = maxf(0, accumulator - duration)
 		_step(duration)
+		if ai_config.get("execution_mode","async")=="sync" and ai_bridge!=null and (not ai_bridge.pending.is_empty() or not ai_bridge.shelter_pending.is_empty()): break
 	if falling and bomb_fall_elapsed >= float(activity_config["bomb_fall_seconds"])-0.000001:
 		_trigger_impact()
 	clock_changed.emit(elapsed_seconds, running)
@@ -434,25 +533,39 @@ func advance_clock(delta: float) -> void:
 
 
 func _step(duration: float) -> void:
+	if phase in ["EVACUATION","BOMB_FALL"]: Incidents.update(self)
+	emergency.tick(duration)
+	if phase=="IMPACT":
+		if social!=null: social.tick(duration)
+		elapsed_seconds+=duration
+		survival.tick(duration)
+		if social==null or (not survival.started and social.shelter_life.completed) or elapsed_seconds>=post_impact_end_seconds-0.000001:
+			_finish_post_impact()
+		return
+	if social != null: social.tick(duration)
 	if phase in ["EVACUATION", "BOMB_FALL"]:
 		if elapsed_seconds >= next_warning_observation:
 			Warning.perceive(self)
 			next_warning_observation = elapsed_seconds+0.5
-		Incidents.update(self)
 	if elapsed_seconds + 0.000001 >= next_contact_seconds:
 		Reactions.perceive(self)
 		Reactions.social_observations(self)
 		Rumors.exchange(self)
 		next_contact_seconds += living["communication_interval"]
 	if phase == "LIVING":
-		Activity.roam(self,duration)
+		if social==null: Activity.roam(self,duration)
 		elapsed_seconds += duration
+		if social!=null and social.config.automatic_warning and social.config.pre_disaster_seconds>0 and elapsed_seconds>=social.config.pre_disaster_seconds: launch_nuke()
 		return
 	Activity.crowd_actions(self)
-	if elapsed_seconds + 0.000001 >= next_decision_seconds:
+	if social!=null:
 		for agent in agents:
-			if agent["state"] in ["MOVING", "DECIDING"]:
+			if elapsed_seconds>=agent.get("next_rule_decision",0) and agent.state in ["MOVING","DECIDING"]:
+				agent.next_rule_decision=elapsed_seconds+maxf(settings.evacuation.decision_interval_seconds,ai_config.decision_interval_seconds)
 				choose_destination(agent)
+	elif elapsed_seconds + 0.000001 >= next_decision_seconds:
+		for agent in agents:
+			if agent["state"] in ["MOVING", "DECIDING"]: choose_destination(agent)
 		next_decision_seconds += settings["evacuation"]["decision_interval_seconds"]
 	for agent in agents:
 		if agent["state"] == "REJECTED" and elapsed_seconds + 0.000001 >= agent["next_reconsider_seconds"]:
@@ -460,6 +573,8 @@ func _step(duration: float) -> void:
 	var arrivals: Array[Dictionary] = []
 	for agent in agents:
 		agent["previous_position"] = agent["position"]
+		if is_equal_approx(float(agent.get("egress_moved_at",-1)),elapsed_seconds): continue
+		if social != null and social.move_social(agent,duration): continue
 		if Activity.special(self,agent,duration): continue
 		if agent["state"] == "WAITING_ROAD" and not Incidents.road_blocks(agent, environment_events, living["road_radius"]):
 			_set_state(agent, "MOVING")
@@ -472,6 +587,7 @@ func _step(duration: float) -> void:
 			agent["current_goal"] = "Wait for blocked road to clear"
 			log_event("ENVIRONMENT", "%s detected a road blockage and must wait." % agent["id"])
 			continue
+		if social != null and social.pedestrian_blocked(agent,duration): continue
 		var movement := Routes.move(agent, duration)
 		if movement["arrived"]:
 			arrivals.append({"agent": agent, "offset": movement["travel_seconds"]})
@@ -494,8 +610,9 @@ func _step(duration: float) -> void:
 
 
 func set_speed(value: float) -> void:
-	if value not in [1.0, 2.0, 5.0, 10.0]:
+	if value not in [1.0, 2.0, 5.0, 10.0, 20.0, 50.0]:
 		return
+	if survival.fast_forward: accumulator=0; survival.fast_forward=false
 	simulation_speed = value
 	log_event("CLOCK", "Simulation speed set to %dx." % int(value))
 	clock_changed.emit(elapsed_seconds, running)
@@ -503,7 +620,24 @@ func set_speed(value: float) -> void:
 
 func new_run(new_seed: int) -> void:
 	seed_value = new_seed
+	if not world.current.is_empty():
+		generate_world(new_seed,world.current.settings)
+		return
 	initialize_run()
+
+func generate_world(world_seed: int, options: Dictionary = {}) -> bool:
+	if world.busy: return false
+	pause(); phase="PREPARATION"
+	return world.generate(world_seed,options)
+
+func seed_for(channel: String) -> int:
+	var value:=int(experiment_seeds.get(channel,-1))
+	return seed_value if value<0 else value
+
+func world_metadata() -> Dictionary:
+	var result: Dictionary=world.metadata()
+	result.experiment_seeds={"population":seed_for("population"),"scenario":seed_for("scenario"),"events":seed_for("events"),"behavior":seed_for("behavior")}
+	return result
 
 
 func _set_state(agent: Dictionary, state: String) -> void:
@@ -514,6 +648,9 @@ func _set_state(agent: Dictionary, state: String) -> void:
 
 
 func choose_destination(agent: Dictionary) -> void:
+	if agent.get("police_unit_busy",false) or agent.get("evacuation_group","")!="": return
+	if social != null and agent.get("age",30)<18:
+		return
 	if agent.get("configured_provider", "RULE_BASED") == "LOCAL_LLM" and ai_bridge != null and phase in ["EVACUATION", "BOMB_FALL"] and agent["state"] not in ["SHELTERED", "EXPOSED", "SAFE"]:
 		if ai_bridge.request_decision(agent):
 			return
@@ -526,20 +663,23 @@ func choose_destination(agent: Dictionary) -> void:
 
 
 func choose_rule_destination(agent: Dictionary) -> void:
-	if phase not in ["EVACUATION", "BOMB_FALL"] or agent["state"] in ["SHELTERED", "EXPOSED"]:
+	if agent.get("police_unit_busy",false) or agent.get("evacuation_group","")!="": return
+	if (phase not in ["EVACUATION", "BOMB_FALL"] and not (phase in ["LIVING","IMPACT"] and agent.get("emergency_evacuating",false))) or agent["state"] in ["SHELTERED", "EXPOSED"]:
 		return
 	var previous: String = agent["objective"]
+	agent["rule_decision_count"]=int(agent.get("rule_decision_count",0))+1
 	# Public rough urgency is private to this agent. Never pass the hidden deadline.
 	var perceived := maxf(30, agent["perceived_warning_seconds"] - (elapsed_seconds-alarm_started_seconds))
+	if phase in ["LIVING","IMPACT"] and agent.get("emergency_evacuating",false): perceived=1800.0
 	var result := Decisions.evaluate(agent, perceived, settings["evacuation"]["weights"])
 	agent["decision_scores"] = result["scores"]
 	var destination: String = result["shelter_id"]
-	if previous == destination and not destination.is_empty() and not agent["route"].is_empty() and agent["route_index"] < agent["route"].size():
+	if not agent.get("force_route_replan",false) and previous == destination and not destination.is_empty() and not agent["route"].is_empty() and agent["route_index"] < agent["route"].size():
 		if agent["state"] == "DECIDING":
 			_set_state(agent, "MOVING")
 			agent["current_goal"] = "Reach " + destination
 		return
-	if not previous.is_empty() and result["scores"][previous]["eligible"] and not destination.is_empty():
+	if not agent.get("force_route_replan",false) and not previous.is_empty() and result["scores"][previous]["eligible"] and not destination.is_empty():
 		var margin: float = settings["evacuation"]["switch_margin"] * (0.25 if agent["primary_personality"] == "OPPORTUNISTIC" else 1.0)
 		if result["score"] <= result["scores"][previous]["score"] + margin:
 			if agent["state"] == "DECIDING":
@@ -548,6 +688,7 @@ func choose_rule_destination(agent: Dictionary) -> void:
 			return
 	_set_state(agent, "DECIDING" if previous.is_empty() else "CHANGING_DESTINATION")
 	agent["objective"] = destination
+	agent["force_route_replan"]=false
 	agent["decision_explanation"] = result["explanation"]
 	agent["current_goal"] = "Wait for useful information" if destination.is_empty() else "Reach " + destination
 	if not destination.is_empty() and agent["recommendations"].has(destination):
@@ -564,6 +705,7 @@ func choose_rule_destination(agent: Dictionary) -> void:
 	while agent["decision_history"].size() > 100:
 		agent["decision_history"].pop_front()
 	if destination.is_empty():
+		_set_state(agent,"DECIDING")
 		agent["route"] = PackedVector2Array()
 		agent["route_index"] = 0
 		log_event("DECISION", "%s: no known reachable destination." % agent["id"])
@@ -582,19 +724,28 @@ func choose_rule_destination(agent: Dictionary) -> void:
 func admit_arrival(agent: Dictionary) -> String:
 	if agent["state"] == "SHELTERED":
 		return "Already admitted"
-	if phase not in ["EVACUATION", "BOMB_FALL"] or agent["objective"].is_empty():
+	var open_phase: bool=phase in ["EVACUATION","BOMB_FALL"] or (phase in ["LIVING","IMPACT"] and agent.get("emergency_evacuating",false))
+	if not open_phase or agent["objective"].is_empty():
 		return "Evacuation is not accepting arrivals"
 	var shelter: Dictionary = shelter_by_id[agent["objective"]]
 	if agent["position"].distance_to(shelter["position"]) > 0.01:
 		return "Agent has not reached entrance"
+	if social != null and not social.companion_runtime.before_owner_admission(agent,shelter):
+		return "Waiting for companion to reach shelter entrance"
 	log_event("ARRIVAL", "%s arrived at %s." % [agent["id"], shelter["id"]])
 	Beliefs.observe(agent, shelter, elapsed_seconds, living)
-	var reason := Admission.try_admit(agent, shelter, phase in ["EVACUATION", "BOMB_FALL"])
+	var reason := Admission.try_admit(agent, shelter, open_phase)
 	if reason.is_empty():
 		_set_state(agent, "SHELTERED")
 		agent["sheltered_at"] = elapsed_seconds
 		shelter["current_occupancy"] = shelter["occupancy"]
 		agent["current_goal"] = "Wait inside " + shelter["id"]
+		if social!=null: agent.sheltered_at=elapsed_seconds
+		if social!=null: social.companion_runtime.owner_admitted(agent,shelter)
+		if phase=="IMPACT" and social!=null and social.shelter_life.active and not agent.get("shelter_life_active",false): social.shelter_life.accept_transfer(agent)
+		agent["emergency_evacuating"]=false
+		agent["evacuation_excluded_shelters"]=[]
+		agent["evacuation_requires_verified"]=false
 		log_event("ADMITTED", "%s entered %s • %d/%d." % [agent["id"], shelter["id"], shelter["occupancy"], shelter["capacity"]])
 	else:
 		_set_state(agent, "REJECTED")
@@ -608,7 +759,11 @@ func admit_arrival(agent: Dictionary) -> String:
 		agent["next_reconsider_seconds"] = elapsed_seconds + settings["evacuation"]["rejection_pause_seconds"]
 		log_event("REJECTED", "%s rejected by %s: %s." % [agent["id"], shelter["id"], reason])
 	Beliefs.remember(agent, elapsed_seconds, "Entrance " + shelter["id"] + ": " + ("admitted" if reason.is_empty() else reason), living)
+	emergency.refresh_shelters()
 	return reason
+
+func add_emergency(kind: String, point: Vector2, options: Dictionary = {}) -> String:
+	return emergency.add_event(kind,point,options)
 
 
 func get_totals() -> Dictionary:
@@ -634,6 +789,9 @@ func _trigger_impact() -> void:
 	ai_bridge.invalidate_run()
 	if not alarm_is_real:
 		return
+	# Cover the furthest map corner, including when the Director moves the epicentre.
+	var blast_center:=Vector2(nuclear.impact_position[0],nuclear.impact_position[1])
+	nuclear["radius"]=maxf(float(nuclear.radius),Blast.map_coverage_radius(blast_center,CityMap.MAP_SIZE,float(nuclear.zone_fractions[2])))
 	phase = "IMPACT"
 	Warning.impact(self)
 	running = false
@@ -674,8 +832,37 @@ func _trigger_impact() -> void:
 	summary.merge({"destroyed_sirens": sirens.filter(func(s): return s["state"] == "DESTROYED").size(),"damaged_sirens": sirens.filter(func(s): return s["state"] == "DAMAGED").size(),"surviving_sirens": sirens.filter(func(s): return s["survived"]).size(),"dead": dead,"injured": injured,"survivors": agents.size()-dead,"evacuation_failures": evacuation_failures,"destroyed_shelters": shelters.filter(func(sh): return sh["structural_state"] == "DESTROYED").size()})
 	log_event("IMPACT","Impact resolved: %d deaths, %d injured, %d shelters destroyed." % [dead,injured,summary["destroyed_shelters"]])
 	log_event("EXPERIMENT", "Completed run snapshot queued for archival.", "director")
-	last_archive_path = ExperimentLog.enqueue({"phase": phase,"elapsed_seconds": elapsed_seconds,"alarm_is_real": alarm_is_real,"seed": seed_value,"settings": settings,"nuclear": nuclear,"living": living,"countdown": countdown_seconds,"summary": summary,"agents": agents,"shelters": shelters,"events": events,"structures": structures,"world_objects": world_objects,"sirens": sirens,"warning_config": warning_config,"points_of_interest": points_of_interest,"ai_metrics": ai_bridge.metrics if ai_bridge != null else {}},archive_workers)
+	last_archive_path = ExperimentLog.enqueue({"phase": phase,"elapsed_seconds": elapsed_seconds,"alarm_is_real": alarm_is_real,"seed": seed_value,"world": world_metadata(),"world_configuration": world.current,"world_json": world.current_json,"settings": settings,"nuclear": nuclear,"living": living,"countdown": countdown_seconds,"summary": summary,"agents": agents,"shelters": shelters,"events": events,"structures": structures,"world_objects": world_objects,"sirens": sirens,"warning_config": warning_config,"points_of_interest": points_of_interest,"ai_metrics": ai_bridge.metrics if ai_bridge != null else {}},archive_workers)
+	if social!=null:
+		social.impact()
+		social.begin_shelter_life()
+		post_impact_started_seconds=elapsed_seconds
+		post_impact_end_seconds=elapsed_seconds+float(social.shelter_life.config.get("duration_days",10))*social.shelter_life.day_duration_seconds()
+		social.shelter_life.config.duration_days=10
+		post_impact_end_seconds=elapsed_seconds+10*social.shelter_life.day_duration_seconds()
+		survival.begin(self)
+		post_impact_complete=false
+		running=not post_impact_complete
+		if post_impact_complete: social.finalize()
+		else: log_event("SHELTER LIFE","Survivors begin ten simulated days of shelter routines.")
+	else:
+		post_impact_started_seconds=elapsed_seconds; post_impact_end_seconds=elapsed_seconds; post_impact_complete=true
 	impact_occurred.emit(summary.duplicate())
+
+func _finish_post_impact() -> void:
+	if post_impact_complete: return
+	survival.finish()
+	post_impact_complete=true; running=false; accumulator=0
+	if not survival.result.is_empty(): survival.export_report()
+	if social!=null:
+		social.shelter_life.active=false; social.shelter_life.completed=true
+		var active_survivors:=agents.filter(func(a):return a.get("shelter_life_active",false)).size()
+		summary["post_impact_days"]=int(social.shelter_life.config.get("duration_days",10))
+		summary["shelter_survivors_remaining"]=active_survivors
+		log_event("SHELTER LIFE","Ten simulated days have elapsed. %d sheltered survivors remain."%active_survivors)
+		social.finalize()
+	last_archive_path=ExperimentLog.enqueue({"phase":phase,"elapsed_seconds":elapsed_seconds,"seed":seed_value,"world":world_metadata(),"world_configuration":world.current,"world_json":world.current_json,"summary":summary,"agents":agents,"shelters":shelters,"shelter_life":social.shelter_life.shelters if social!=null else {},"shelter_social":social.shelter_life.dynamics.metrics() if social!=null else {},"survival_results":survival.result,"shelter_conflicts":social.shelter_life.dynamics.conflicts if social!=null else [],"shelter_storyteller":social.shelter_life.storyteller.snapshot() if social!=null else {}},archive_workers)
+	clock_changed.emit(elapsed_seconds,running); simulation_updated.emit()
 
 
 func _trigger_all_clear() -> void:
@@ -689,13 +876,15 @@ func _trigger_all_clear() -> void:
 			_set_state(agent, "SAFE")
 		agent["current_goal"] = "All-clear; no nuclear impact"
 		agent["survival_status"] = "SAFE_FROM_STRIKE"
+	if social!=null: social.all_clear()
 	summary = get_totals()
 	log_event("ALL CLEAR", "False alarm confirmed. No impact occurred; all agents are safe from the strike.")
 	all_clear.emit()
 
 
 func log_event(category: String, message: String, visibility: String = "public") -> void:
-	var entry := {"time": elapsed_seconds, "category": category, "message": message, "visibility": visibility}
+	var entry := {"time": elapsed_seconds, "wall_clock_utc":Time.get_datetime_string_from_system(true), "category": category, "message": message, "visibility": visibility}
+	entry.merge(world_metadata())
 	events.append(entry)
 	event_logged.emit(entry)
 	if ai_bridge != null:
@@ -709,7 +898,7 @@ func set_impact(point: Vector2) -> bool:
 	return true
 func randomize_impact() -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_value + 3501
+	rng.seed = seed_for("scenario") + 3501
 	nuclear["impact_position"] = [rng.randf_range(0,CityMap.MAP_SIZE.x),rng.randf_range(0,CityMap.MAP_SIZE.y)]
 func preview_damage() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -726,3 +915,7 @@ func finish_archives() -> void:
 	archive_workers.clear()
 func _exit_tree() -> void:
 	finish_archives()
+	if social!=null: social.close()
+
+func can_observe(a: Dictionary, b: Dictionary) -> bool:
+	return social==null or social.daily.interiors.can_see(a,b)

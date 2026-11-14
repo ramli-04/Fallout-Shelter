@@ -3,3 +3,14 @@ uvicorn>=0.30,<1
 pydantic>=2.9,<3
 httpx>=0.27,<1
 aiokafka>=0.12,<1
+
+# LangChain provides the model/prompt/tool interfaces; LangGraph orchestrates
+# cognitive decisions. Provider integrations are isolated optional adapters.
+langchain>=1,<2
+langgraph>=1,<2
+langchain-ollama>=1,<2
+langchain-openai>=1,<2
+langchain-google-genai>=4,<5
+
+numpy>=2,<3
+shapely>=2.1,<3

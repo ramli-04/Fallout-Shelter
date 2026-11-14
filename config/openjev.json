@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/razorback16/openjev.git",
+  "revision": "b4339c640f5331ef75098637d1be2c787715ee88",
+  "version": "0.7.2",
+  "model": "laya-1.0",
+  "backend": "laya",
+  "endpoint": "http://127.0.0.1:8780/v1/systemone",
+  "timeout_seconds": 12.0,
+  "max_pending": 1,
+  "interval_seconds": 45.0,
+  "checkpoint": "convaiinnovations/laya-typed-decisions",
+  "checkpoint_revision": "e929ae5cf69bc34259cd2f95c9e91145b818b1f0"
+}

@@ -20,15 +20,19 @@ static func evaluate(agent: Dictionary, remaining: float, weights: Dictionary) -
 	travel_factor *= 0.7 + agent["self_preservation"]/166.7
 	for shelter_id in agent["beliefs"]:
 		var belief: Dictionary = agent["beliefs"][shelter_id]
-		var route := Routes.plan(agent["position"], belief["position"])
+		var origin: Vector2=agent.get("indoor_exit",agent.position) if agent.get("indoor_id","")!="" else agent.position
+		var route := Routes.plan(origin, belief["position"])
 		if route.is_empty():
 			scores[shelter_id] = {"eligible": false, "reason": "No clear route"}
 			continue
-		var distance := Routes.length(route)
-		if agent["objective"] == shelter_id and not agent["route"].is_empty():
+		var distance: float=Routes.length(route)+agent.position.distance_to(origin)
+		if not agent.get("force_route_replan",false) and agent["objective"] == shelter_id and not agent["route"].is_empty():
 			distance = Routes.remaining_distance(agent)
 		var eta: float = distance / agent["movement_speed"]
-		var eligible: bool = not belief["unavailable"] and belief["existence_probability"] > 0 and belief["estimated_occupancy"] < belief["capacity"] and eta <= remaining + 0.00001
+		# Synthetic IQ changes only subjective travel-time estimation by a bounded small amount.
+		eta *= 1.0 + clampf((100-float(agent.get("iq",100)))/45,-1,1)*minf(.1,float(agent.get("iq_influence",0)))
+		var verified: bool=not agent.get("evacuation_requires_verified",false) or (float(belief.existence_probability)>=1.0 and float(belief.confidence)>=.7 and belief.get("safety_status","")=="SAFE")
+		var eligible: bool = verified and shelter_id not in agent.get("evacuation_excluded_shelters",[]) and not belief["unavailable"] and belief.get("accessible",true) and belief.get("safety_status","SAFE") not in ["UNSAFE","DESTROYED"] and belief["existence_probability"] > 0 and belief["estimated_occupancy"] < belief["capacity"] and eta <= remaining + 0.00001
 		if not eligible:
 			scores[shelter_id] = {"eligible": false, "score": null, "eta": eta, "reason": "Unavailable, believed full, or beyond own warning estimate"}
 			continue
@@ -43,6 +47,12 @@ static func evaluate(agent: Dictionary, remaining: float, weights: Dictionary) -
 		score -= weights["uncertainty"] * (caution + agent["skepticism"]/200.0) * (1.0 - belief["confidence"])
 		score += float(agent.get("recommendations", {}).get(shelter_id, 0)) * (1.5 if type in ["FOLLOWER", "FAMILY-ORIENTED"] else 0.3)
 		score += float(agent.get("observed_crowds", {}).get(shelter_id, 0)) * agent["sociability"]/300.0
+		var family_support:=0.0
+		for member in agent.get("relationships",{}):
+			var remembered: Dictionary=agent.get("known_locations",{}).get(member,{})
+			if not remembered.is_empty() and remembered.position.distance_to(belief.position)<65:
+				family_support+=float(remembered.get("confidence",.5))*float(agent.get("cognitive_traits",{}).get("family_attachment",50))/100.0
+		score+=minf(2,family_support)
 		for hazard in agent.get("avoided_locations", []):
 			for i in range(1, route.size()):
 				if Geometry2D.get_closest_point_to_segment(hazard["position"], route[i-1], route[i]).distance_to(hazard["position"]) < 65:

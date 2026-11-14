@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "step_minutes": 5,
+  "warmup_hours": 3,
+  "minimum_gap_hours": 6,
+  "max_active_per_shelter": 2,
+  "max_events_per_day": 2,
+  "automatic_severity_range": [
+    0.15,
+    0.45
+  ],
+  "critical_event_gap_hours": 24,
+  "events": {
+    "generator_failure": {
+      "category": "infrastructure",
+      "system": "power",
+      "skill": "technical",
+      "activity": "MAINTAIN_GENERATOR",
+      "rooms": [
+        "Generator"
+      ],
+      "rate_per_hour": 0.008,
+      "work_hours": 1.5,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "electrical_short": {
+      "category": "infrastructure",
+      "system": "electrical",
+      "skill": "technical",
+      "activity": "REPAIR_EQUIPMENT",
+      "rooms": [
+        "Electrical",
+        "Generator"
+      ],
+      "rate_per_hour": 0.005,
+      "work_hours": 1.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "water_pump_failure": {
+      "category": "infrastructure",
+      "system": "water",
+      "skill": "technical",
+      "activity": "MAINTAIN_WATER",
+      "rooms": [
+        "Water treatment",
+        "Water storage"
+      ],
+      "rate_per_hour": 0.008,
+      "work_hours": 1.5,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "air_filtration_failure": {
+      "category": "infrastructure",
+      "system": "air",
+      "skill": "technical",
+      "activity": "MAINTAIN_AIR",
+      "rooms": [
+        "Air filtration"
+      ],
+      "rate_per_hour": 0.008,
+      "work_hours": 1.5,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "ventilation_blockage": {
+      "category": "infrastructure",
+      "system": "ventilation",
+      "skill": "technical",
+      "activity": "MAINTAIN_AIR",
+      "rooms": [
+        "Air filtration",
+        "Metro corridor"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 1.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "broken_pipes": {
+      "category": "infrastructure",
+      "system": "pipes",
+      "skill": "technical",
+      "activity": "MAINTAIN_WATER",
+      "rooms": [
+        "Water treatment",
+        "Water storage",
+        "Sanitation"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 1.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "flooding": {
+      "category": "infrastructure",
+      "system": "drainage",
+      "skill": "technical",
+      "activity": "MAINTAIN_WATER",
+      "rooms": [
+        "Metro corridor",
+        "Water storage",
+        "Sanitation"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 2.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.025
+    },
+    "fire": {
+      "category": "infrastructure",
+      "system": "fire_safety",
+      "skill": "fire_safety",
+      "activity": "FIRE_SAFETY",
+      "rooms": [
+        "Generator",
+        "Kitchen",
+        "Storage"
+      ],
+      "rate_per_hour": 0.003,
+      "work_hours": 1.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.025
+    },
+    "door_malfunction": {
+      "category": "infrastructure",
+      "system": "doors",
+      "skill": "technical",
+      "activity": "REPAIR_EQUIPMENT",
+      "rooms": [
+        "Entrance",
+        "Secure entrance"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 1.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "communication_failure": {
+      "category": "infrastructure",
+      "system": "communications",
+      "skill": "technical",
+      "activity": "REPAIR_EQUIPMENT",
+      "rooms": [
+        "Communication",
+        "Radio room",
+        "Control"
+      ],
+      "rate_per_hour": 0.005,
+      "work_hours": 1.0,
+      "cooldown_hours": 18,
+      "escalation_per_hour": 0.01
+    },
+    "argument": {
+      "category": "social",
+      "system": "",
+      "skill": "social",
+      "activity": "RECONCILE",
+      "rooms": [
+        "Common room",
+        "Dining"
+      ],
+      "rate_per_hour": 0.008,
+      "work_hours": 0.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "leadership_dispute": {
+      "category": "social",
+      "system": "",
+      "skill": "social",
+      "activity": "RECONCILE",
+      "rooms": [
+        "Common room",
+        "Dining",
+        "Control"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 1.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "food_theft": {
+      "category": "social",
+      "system": "",
+      "skill": "security",
+      "activity": "SECURITY",
+      "rooms": [
+        "Food storage",
+        "Dining",
+        "Supply storage"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 0.75,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "refusal_to_work": {
+      "category": "social",
+      "system": "",
+      "skill": "social",
+      "activity": "RECONCILE",
+      "rooms": [
+        "Workshop",
+        "Dining"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 0.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "group_panic": {
+      "category": "social",
+      "system": "",
+      "skill": "emergency",
+      "activity": "EMERGENCY_RESPONSE",
+      "rooms": [
+        "Common room",
+        "Dining",
+        "Dormitory"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 0.75,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "family_disagreement": {
+      "category": "social",
+      "system": "",
+      "skill": "social",
+      "activity": "RECONCILE",
+      "rooms": [
+        "Family bedroom",
+        "Dormitory",
+        "Dining"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 0.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "authority_civilian_conflict": {
+      "category": "social",
+      "system": "",
+      "skill": "social",
+      "activity": "RECONCILE",
+      "rooms": [
+        "Entrance",
+        "Dining",
+        "Common room"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 1.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "injury": {
+      "category": "health",
+      "system": "",
+      "skill": "medical",
+      "activity": "ASSIST_MEDICAL",
+      "rooms": [
+        "Workshop",
+        "Industrial workshop",
+        "Dormitory",
+        "Dining"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 0.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "infection": {
+      "category": "health",
+      "system": "",
+      "skill": "medical",
+      "activity": "ASSIST_MEDICAL",
+      "rooms": [
+        "Dormitory",
+        "Medical"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 1.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.025
+    },
+    "respiratory_problems": {
+      "category": "health",
+      "system": "",
+      "skill": "medical",
+      "activity": "ASSIST_MEDICAL",
+      "rooms": [
+        "Dormitory",
+        "Metro corridor",
+        "Air filtration"
+      ],
+      "rate_per_hour": 0.005,
+      "work_hours": 0.75,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "dehydration": {
+      "category": "health",
+      "system": "",
+      "skill": "care",
+      "activity": "DISTRIBUTE_RESOURCES",
+      "rooms": [
+        "Dining",
+        "Dormitory",
+        "Water storage"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 0.25,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "exhaustion": {
+      "category": "health",
+      "system": "",
+      "skill": "care",
+      "activity": "TREATMENT",
+      "rooms": [
+        "Dormitory",
+        "Workshop",
+        "Dining"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 0.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "medical_supply_shortage": {
+      "category": "health",
+      "system": "",
+      "skill": "any",
+      "activity": "ORGANIZE_SUPPLIES",
+      "rooms": [
+        "Medical",
+        "Supply storage",
+        "Storage"
+      ],
+      "rate_per_hour": 0.004,
+      "work_hours": 1.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "rat_infestation": {
+      "category": "environment",
+      "system": "sanitation",
+      "skill": "any",
+      "activity": "CLEAN",
+      "rooms": [
+        "Food storage",
+        "Metro corridor",
+        "Storage"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 1.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "pest_contamination": {
+      "category": "environment",
+      "system": "sanitation",
+      "skill": "any",
+      "activity": "CLEAN",
+      "rooms": [
+        "Kitchen",
+        "Food storage",
+        "Supply storage"
+      ],
+      "rate_per_hour": 0.005,
+      "work_hours": 1.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "underground_noises": {
+      "category": "environment",
+      "system": "",
+      "skill": "any",
+      "activity": "OBSERVE",
+      "rooms": [
+        "Metro corridor",
+        "Dormitory",
+        "Entrance"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 0.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "water_contamination": {
+      "category": "environment",
+      "system": "water_quality",
+      "skill": "technical",
+      "activity": "MAINTAIN_WATER",
+      "rooms": [
+        "Water treatment",
+        "Water storage"
+      ],
+      "rate_per_hour": 0.005,
+      "work_hours": 1.5,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    },
+    "structural_damage": {
+      "category": "environment",
+      "system": "structure",
+      "skill": "technical",
+      "activity": "REPAIR_EQUIPMENT",
+      "rooms": [
+        "Metro corridor",
+        "Industrial workshop",
+        "Dormitory"
+      ],
+      "rate_per_hour": 0.003,
+      "work_hours": 3.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.025
+    },
+    "temperature_change": {
+      "category": "environment",
+      "system": "temperature",
+      "skill": "technical",
+      "activity": "REPAIR_EQUIPMENT",
+      "rooms": [
+        "Dormitory",
+        "Generator"
+      ],
+      "rate_per_hour": 0.006,
+      "work_hours": 1.0,
+      "cooldown_hours": 12,
+      "escalation_per_hour": 0.01
+    }
+  },
+  "shelter_profiles": {
+    "S1": {
+      "reliability": 0.9,
+      "dampness": 0.25,
+      "redundancy": 0.5
+    },
+    "S2": {
+      "reliability": 0.65,
+      "dampness": 0.85,
+      "redundancy": 0.15
+    },
+    "S3": {
+      "reliability": 0.94,
+      "dampness": 0.15,
+      "redundancy": 0.7
+    },
+    "S4": {
+      "reliability": 0.82,
+      "dampness": 0.4,
+      "redundancy": 0.5
+    },
+    "S5": {
+      "reliability": 0.97,
+      "dampness": 0.1,
+      "redundancy": 0.9
+    }
+  }
+}

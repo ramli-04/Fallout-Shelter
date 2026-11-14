@@ -113,7 +113,7 @@ static func exchange(manager: Node) -> void:
 			continue
 		var contacted := false
 		for recipient in manager.agents:
-			if recipient == speaker or recipient["position"].distance_to(speaker["position"]) > config["communication_radius"]:
+			if not manager.can_observe(speaker,recipient) or recipient == speaker or recipient["position"].distance_to(speaker["position"]) > config["communication_radius"]:
 				continue
 			var reaction := receive(recipient, chosen, speaker, time, config)
 			if reaction != "duplicate":

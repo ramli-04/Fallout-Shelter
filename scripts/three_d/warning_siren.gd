@@ -38,6 +38,7 @@ func _ready() -> void:
 	for i in range(4):
 		var angle := i*TAU/4
 		var speaker := Geometry.cylinder(assembly,0.75,1.2,Vector3(sin(angle),0,cos(angle)),Color("adb59b"))
+		Geometry.make_mesh_unique(speaker)
 		speaker.mesh.top_radius = 0.8
 		speaker.mesh.bottom_radius = 0.25
 		speaker.mesh.radial_segments = 8
@@ -48,6 +49,7 @@ func _ready() -> void:
 	beacon.position.y = 1.0
 	assembly.add_child(beacon)
 	lamp = Geometry.box(beacon,Vector3(0.65,0.3,0.3),Vector3(0.3,0,0),Color("cd693e"))
+	lamp.material_override = Geometry.material(Color("cd693e"))
 	lamp.material_override.emission_enabled = true
 	lamp.material_override.emission = Color("dd5732")
 	Geometry.label(self,record.get("id","SIREN"),Vector3(0,base+height+2,0),Color("f3d5a4"),20,0.035)

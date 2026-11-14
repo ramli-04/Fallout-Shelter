@@ -1,6 +1,12 @@
 extends RefCounted
 ## Fictional experimental damage, never a physical nuclear-effects prediction.
 const Coordinates = preload("res://scripts/three_d/world_coordinates.gd")
+static func map_coverage_radius(center: Vector2,size: Vector2,outer_fraction: float=1.0) -> float:
+	var reach:=0.0
+	for corner in [Vector2.ZERO,Vector2(size.x,0),size,Vector2(0,size.y)]:
+		reach=maxf(reach,center.distance_to(corner)*Coordinates.SCALE)
+	return reach/maxf(.01,outer_fraction)+1.0
+
 static func intensity(point: Vector2, config: Dictionary) -> float:
 	var center := Vector2(config["impact_position"][0],config["impact_position"][1])
 	var distance := point.distance_to(center)*Coordinates.SCALE

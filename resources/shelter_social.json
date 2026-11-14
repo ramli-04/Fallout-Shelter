@@ -1,0 +1,10 @@
+{
+  "step_minutes": 15.0,
+  "election_hours": 6.0,
+  "minimum_acceptance": 0.5,
+  "challenge_support": 0.4,
+  "trusted_caregiver": 65.0,
+  "caregiver_capacity": 3,
+  "conflict_threshold": 65.0,
+  "history_limit": 64
+}

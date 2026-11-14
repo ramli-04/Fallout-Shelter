@@ -13,7 +13,7 @@ func check(value: bool, label: String) -> void:
 func run() -> void:
 	for seed_value in [42,43,91]:
 		Map.generate(seed_value)
-		check(Map.graph.get_point_count() == 65,"connected junction and shelter network")
+		check(Map.graph.get_point_count() >= 200,"expanded connected junction and shelter network")
 		for id in Map.graph.get_point_ids(): check(not Map.graph.get_id_path(0,id).is_empty(),"all junctions connected")
 		var slots := Map.spawn_slots()
 		check(slots.size() >= 400,"120 agents and extra population fit")
@@ -90,7 +90,7 @@ func run() -> void:
 	view.focus_selected()
 	check(not view.follow_agent,"shelter focus does not follow an agent")
 	view.camera_rig.pan(Vector2(1,1),1000)
-	check(view.camera_rig.target_focus.x <= Map.MAP_SIZE.x*0.1 and view.camera_rig.target_focus.z <= Map.MAP_SIZE.y*0.1,"camera remains in useful bounds")
+	check(view.camera_rig.target_focus.x <= Map.MAP_SIZE.x*0.1+.001 and view.camera_rig.target_focus.z <= Map.MAP_SIZE.y*0.1+.001,"camera remains in useful bounds within float precision")
 	view.queue_free()
 	for shelter in visuals: shelter.queue_free()
 	city.queue_free()

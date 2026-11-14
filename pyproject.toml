@@ -5,5 +5,8 @@ description = "ESSAIM - La Derniere Chance, an academic multi-agent simulation"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+reports = ["matplotlib>=3.8"]
+
 [tool.essaim]
 milestones = [1, 2, 3]

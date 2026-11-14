@@ -6,6 +6,7 @@ const Manager = preload("res://scripts/simulation_manager.gd")
 const MapView = preload("res://scripts/map_view_3d.gd")
 const Inspector = preload("res://scripts/object_inspector.gd")
 const Effects = preload("res://scripts/evacuation_effects.gd")
+const AssetBrowser = preload("res://scripts/asset_library_browser.gd")
 const director_mode := true
 
 var manager: Node
@@ -64,6 +65,9 @@ var ai_performance_label: Label
 var experiment_picker: OptionButton
 var ai_group_filter := "ALL"
 var ai_agent_filter := "ALL"
+var social_window: Window
+var asset_window: Window
+var launch_menu: CanvasLayer
 
 
 func _ready() -> void:
@@ -86,7 +90,15 @@ func _ready() -> void:
 	manager.all_clear.connect(_on_all_clear)
 	map_view.object_selected.connect(_on_object_selected)
 	agent_picker.item_selected.connect(func(index: int):
-		if index > 0: map_view.select_agent(manager.agents[index-1]))
+		if index <= 0: return
+		var selection: Dictionary = agent_picker.get_item_metadata(index)
+		if selection.get("kind", "") == "agent":
+			for agent in manager.agents:
+				if agent["id"] == selection.get("id", ""): map_view.select_agent(agent); return
+		elif selection.get("kind", "") == "companion":
+			for companion in manager.social.companions:
+				if companion["id"] == selection.get("id", ""): map_view.select_companion(companion); return
+	)
 	start_button.pressed.connect(_start_map_view)
 	launch_button.pressed.connect(manager.launch_nuke)
 	false_alarm_button.pressed.connect(manager.launch_nuke.bind(true))
@@ -97,7 +109,7 @@ func _ready() -> void:
 	new_run_button.pressed.connect(_on_new_run)
 	speed_picker.item_selected.connect(func(index: int): manager.set_speed(speed_picker.get_item_id(index)))
 	if manager.load_settings():
-		manager.initialize_run()
+		launch_menu=preload("res://scripts/start_menu.gd").new(); add_child(launch_menu); launch_menu.setup(self,manager)
 
 
 func _build_dashboard() -> void:
@@ -127,13 +139,17 @@ func _build_dashboard() -> void:
 	rail.offset_left = -64
 	rail.offset_right = -16
 	rail.offset_top = 112
-	for entry in [["agents", "Agents"], ["shelters", "Shelters"], ["logs", "Logs"], ["sirens", "Sirens"]]:
+	for entry in [["agents", "Agents"], ["shelters", "Shelters"], ["logs", "Logs"], ["sirens", "Sirens"], ["library", "Asset library"]]:
 		var button := Dashboard.icon_button(entry[0], entry[1])
-		button.toggle_mode = true
-		button.tooltip_text = "Open or collapse " + entry[1].to_lower() + " panel"
 		rail.add_child(button)
-		drawer_buttons[entry[0]] = button
-		button.pressed.connect(_toggle_drawer.bind(entry[0]))
+		if entry[0] == "library":
+			button.tooltip_text = "Browse locally imported models and animation clips"
+			button.pressed.connect(_open_asset_library)
+		else:
+			button.toggle_mode = true
+			button.tooltip_text = "Open or collapse " + entry[1].to_lower() + " panel"
+			drawer_buttons[entry[0]] = button
+			button.pressed.connect(_toggle_drawer.bind(entry[0]))
 	drawer = Dashboard.column(8)
 	drawer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(drawer)
@@ -178,9 +194,20 @@ func _build_dashboard() -> void:
 	var intro := Dashboard.column(10)
 	intro_panel.add_child(intro)
 	intro.add_child(Dashboard.label("ESSAIM / DIRECTOR VIEW", 24, Dashboard.ACCENT))
-	var hint := Dashboard.label("Press the play icon below to enter the city.\nAgents, shelters and logs open from the right.\nWASD: pan / Wheel: zoom / Right drag: orbit", 16)
+	var hint := Dashboard.label("Press the play icon below to enter the city.\nAgents, shelters and logs open from the right.\nWASD: pan / Wheel: zoom / Right or middle drag: pan / F: follow", 16)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.add_child(hint)
+	social_window = preload("res://scripts/social_dashboard.gd").new()
+	add_child(social_window)
+	social_window.setup(manager,_start_map_view)
+	var configure := Dashboard.button("CONFIGURE SIMULATION",true)
+	intro.add_child(configure)
+	configure.pressed.connect(func(): social_window.popup_centered())
+	var alert_widget=preload("res://scripts/social_alert_widget.gd").new()
+	alert_widget.manager=manager
+	add_child(alert_widget)
+	alert_widget.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	alert_widget.position=Vector2(16,132)
 
 
 func _build_top_bar(layout: VBoxContainer) -> void:
@@ -208,6 +235,10 @@ func _build_top_bar(layout: VBoxContainer) -> void:
 	column.add_child(info)
 	ai_status_label = Dashboard.label("AI / DISCONNECTED", 12, Dashboard.MUTED)
 	info.add_child(ai_status_label)
+	var social_menu := Dashboard.button("CONFIGURE / SOCIAL DIRECTOR")
+	social_menu.add_theme_font_size_override("font_size",12)
+	info.add_child(social_menu)
+	social_menu.pressed.connect(func(): social_window.popup_centered())
 	info.add_child(Dashboard.spacer())
 	warning_label = Dashboard.label("NUCLEAR ALERT / EVACUATE", 13, Color("a05b22"))
 	warning_label.hide()
@@ -298,7 +329,7 @@ func _build_controls(layout: VBoxContainer) -> void:
 	speed_picker = OptionButton.new()
 	speed_picker.tooltip_text = "Simulation speed"
 	speed_picker.custom_minimum_size = Vector2(75, 48)
-	for speed in [1, 2, 5, 10]:
+	for speed in [1, 5, 20, 50]:
 		speed_picker.add_item("%dx" % speed, speed)
 	row.add_child(speed_picker)
 	export_button = Dashboard.icon_button("export", "Export simulation trace")
@@ -327,6 +358,9 @@ func _build_settings(parent: VBoxContainer) -> void:
 	var column := Dashboard.column(10)
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	settings_scroll.add_child(column)
+	var city_controls:=preload("res://scripts/city_controls.gd").new()
+	column.add_child(city_controls)
+	city_controls.configure(manager,map_view)
 	column.add_child(Dashboard.label("DIRECTOR / AI PERFORMANCE", 16, Dashboard.ACCENT))
 	var trace_button := Button.new()
 	trace_button.text = "Open LLM prompt inspector"
@@ -381,6 +415,7 @@ func _build_settings(parent: VBoxContainer) -> void:
 		request.request_completed.connect(func(_result, code, _headers, _body):
 			request.queue_free()
 			if code == 200 or not config["enabled"]:
+				manager.phase5_enabled = false
 				manager.ai_config = config
 				manager.settings = settings
 				manager.initialize_run()
@@ -411,6 +446,13 @@ func _build_settings(parent: VBoxContainer) -> void:
 	var nuclear_controls := preload("res://scripts/nuclear_controls.gd").new()
 	column.add_child(nuclear_controls)
 	nuclear_controls.configure(manager,map_view)
+	if director_mode:
+		var emergency_controls:=preload("res://scripts/emergency_controls.gd").new()
+		column.add_child(emergency_controls)
+		emergency_controls.configure(manager,map_view)
+		var police_controls:=preload("res://scripts/police_controls.gd").new()
+		column.add_child(police_controls)
+		police_controls.configure(manager)
 	siren_controls = preload("res://scripts/siren_controls.gd").new()
 	siren_panel = Dashboard.panel()
 	siren_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -441,15 +483,20 @@ func _on_run_initialized() -> void:
 		var card := Dashboard.shelter_card(record)
 		card.pressed.connect(map_view.select_shelter.bind(record))
 		shelter_list.add_child(card)
-	map_view.display_run(manager.agents, manager.shelters)
+	map_view.display_run(manager.agents, manager.shelters, true, manager.social.companions)
 	count_label.text = str(manager.agents.size())
 	agent_picker.clear()
 	agent_picker.add_item("Inspect any agent / indoors too")
 	agent_picker.set_item_disabled(0,true)
 	for agent in manager.agents:
-		agent_picker.add_item("%s / %s" % [agent["id"],agent["state"]])
+		var title: String = "%s (%s)" % [agent.get("display_name",agent["id"]),agent["id"]] if agent.has("display_name") else agent["id"]
+		agent_picker.add_item("%s / %s" % [title,agent["state"]])
+		agent_picker.set_item_metadata(agent_picker.item_count-1,{"kind":"agent","id":agent["id"]})
+	for companion in manager.social.companions:
+		agent_picker.add_item("%s (%s) / %s" % [companion["name"],companion["id"],companion["state"]])
+		agent_picker.set_item_metadata(agent_picker.item_count-1,{"kind":"companion","id":companion["id"]})
 	agent_picker.select(0)
-	seed_label.text = "SEED %d" % manager.seed_value
+	seed_label.text = "WORLD %d / RUN %d" % [preload("res://scripts/city_map.gd").map_seed,manager.seed_value]
 	speed_label.text = "SPEED  %dx" % int(manager.simulation_speed) if is_equal_approx(manager.simulation_speed, round(manager.simulation_speed)) else "SPEED  %.1fx" % manager.simulation_speed
 	event_feed.clear()
 	environment_feed.clear()
@@ -463,16 +510,22 @@ func _on_run_initialized() -> void:
 
 func _on_clock_changed(elapsed: float, active: bool) -> void:
 	if not active and not manager.agents.is_empty():
-		map_view.sync_run(manager.agents,manager.shelters,1,false,manager.elapsed_seconds)
+		map_view.sync_run(manager.agents,manager.shelters,1,false,manager.elapsed_seconds,manager.social.companions)
 	clock_label.text = "Elapsed  %s" % _format_time(elapsed)
 	countdown_label.text = _format_time(ceil(manager.remaining_seconds)) if manager.phase == "EVACUATION" else "--:--"
 	if manager.phase == "BOMB_FALL": countdown_label.text = "FALL %.1fs" % maxf(0,8.0-manager.bomb_fall_elapsed)
+	if manager.phase=="IMPACT" and manager.social!=null:
+		var life=manager.social.shelter_life
+		var day_number=mini(int(life.config.get("duration_days",10)),int(floor(maxf(0,elapsed-manager.post_impact_started_seconds)/life.day_duration_seconds()))+1)
+		countdown_label.text="DAY %d / %d%s"%[day_number,life.config.get("duration_days",10)," / COMPLETE" if manager.post_impact_complete else ""]
+		if summary_panel.visible:
+			summary_label.text="IMPACT / %d sheltered / %d exposed / %d total. %d dead / %d injured / %d shelters destroyed.\nShelter routines / day %d of %d / %d active survivors."%[manager.summary.get("sheltered",0),manager.summary.get("exposed",0),manager.summary.get("population",manager.agents.size()),manager.summary.get("dead",0),manager.summary.get("injured",0),manager.summary.get("destroyed_shelters",0),day_number,life.config.get("duration_days",10),manager.agents.filter(func(a):return a.get("shelter_life_active",false)).size()]
 	if manager.phase == "BOMB_FALL": warning_label.text = "BOMB RELEASED / TAKE COVER"
 	status_label.text = manager.phase.capitalize() + (" / Running" if active else " / Paused")
 	if manager.phase == "EVACUATION":
 		status_label.text += " / " + ("Real" if manager.alarm_is_real else "False")
-	start_button.tooltip_text = "Start simulation" if manager.phase == "PREPARATION" else "Resume simulation"
-	start_button.disabled = active or manager.phase in ["IMPACT", "ALL_CLEAR"]
+	start_button.tooltip_text = "Start simulation" if manager.phase == "PREPARATION" else "Resume shelter simulation" if manager.phase=="IMPACT" else "Resume simulation"
+	start_button.disabled = active or manager.phase == "ALL_CLEAR" or (manager.phase=="IMPACT" and manager.post_impact_complete)
 	launch_button.disabled = manager.phase not in ["PREPARATION", "LIVING"]
 	false_alarm_button.disabled = launch_button.disabled
 	pause_button.disabled = not active
@@ -494,13 +547,14 @@ func _on_object_selected(kind: String, record: Dictionary) -> void:
 		siren_controls.inspect(selected_id)
 		return
 	agent_picker.select(0)
-	if kind == "agent":
-		for index in range(manager.agents.size()):
-			if manager.agents[index]["id"] == selected_id:
-				agent_picker.select(index+1)
+	if kind in ["agent", "companion"]:
+		for index in range(1,agent_picker.item_count):
+			var selection: Dictionary = agent_picker.get_item_metadata(index)
+			if selection.get("kind","")==kind and selection.get("id","")==selected_id:
+				agent_picker.select(index)
 				break
-	if kind in ["agent", "shelter"]:
-		_show_drawer("agents" if kind == "agent" else "shelters")
+	if kind in ["agent", "companion", "shelter", "roadblock"]:
+		_show_drawer("agents" if kind in ["agent","companion","roadblock"] else "shelters")
 	_refresh_inspector()
 	inspector_scroll_generation += 1
 	if kind != "none":
@@ -521,14 +575,25 @@ func _scroll_to_inspector(generation: int) -> void:
 
 
 func _refresh_inspector() -> void:
-	details.visible = (active_drawer == "agents" and selected_kind == "agent") or (active_drawer == "shelters" and selected_kind == "shelter") or selected_kind == "none"
+	details.visible = (active_drawer == "agents" and selected_kind in ["agent","companion","roadblock"]) or (active_drawer == "shelters" and selected_kind == "shelter") or selected_kind == "none"
 	if selected_kind == "agent":
 		for agent in manager.agents:
 			if agent["id"] == selected_id:
 				details.text = Inspector.agent_text(agent)
 				return
+	elif selected_kind == "companion":
+		for companion in manager.social.companions:
+			if companion["id"] == selected_id:
+				details.text = Inspector.companion_text(manager.social.companion_runtime,companion["id"])
+				return
+	elif selected_kind == "roadblock":
+		for block in manager.social.blocks:
+			if block.id==selected_id:
+				details.text=manager.social.police.inspection(block.get("deployment_id","")) if block.has("deployment_id") else str(block)
+				return
 	elif selected_kind == "shelter":
 		var record: Dictionary = manager.shelter_by_id[selected_id]
+		if record.get("observer_masked",false): details.text=Inspector.shelter_text(record); return
 		var prediction: Dictionary = manager.Blast.shelter_result(record,manager.nuclear)
 		details.text = Inspector.shelter_text(record) + "\n\nBlast distance: %.1f world units\nResistance: %.2f\nStructural state: %s\nPredicted state: %s\nCapacity remaining: %d\nLiving occupants: %d" % [prediction["distance_world"],record["blast_resistance"],record["structural_state"],prediction["structural_state"],maxi(0,record["capacity"]-record["occupancy"]),manager.agents.filter(func(a): return a["shelter_id"] == selected_id and a["health"] > 0).size()]
 		return
@@ -537,7 +602,7 @@ func _refresh_inspector() -> void:
 
 func _on_simulation_updated() -> void:
 	var alpha: float = manager.accumulator / float(manager.settings["evacuation"]["fixed_step_seconds"])
-	map_view.sync_run(manager.agents, manager.shelters, alpha, manager.running, manager.elapsed_seconds)
+	map_view.sync_run(manager.agents, manager.shelters, alpha, manager.running, manager.elapsed_seconds, manager.social.companions)
 	map_view.event_visuals.sync(manager.environment_events, director_mode)
 	ui_dirty = true
 
@@ -559,9 +624,16 @@ func _refresh_live_ui() -> void:
 	totals_label.text = "%d / %d" % [totals["sheltered"], totals["exposed"]]
 	for index in range(manager.agents.size()):
 		var agent: Dictionary = manager.agents[index]
-		var text := "%s / %s" % [agent["id"],agent["state"]]
+		var title: String = "%s (%s)" % [agent.get("display_name",agent["id"]),agent["id"]] if agent.has("display_name") else agent["id"]
+		var text := "%s / %s" % [title,agent["state"]]
 		if agent_picker.get_item_text(index+1) != text:
 			agent_picker.set_item_text(index+1,text)
+	for offset in range(manager.social.companions.size()):
+		var companion: Dictionary = manager.social.companions[offset]
+		var option_index: int = manager.agents.size()+1+offset
+		var text := "%s (%s) / %s" % [companion["name"],companion["id"],companion["state"]]
+		if option_index < agent_picker.item_count and agent_picker.get_item_text(option_index) != text:
+			agent_picker.set_item_text(option_index,text)
 	for index in range(manager.shelters.size()):
 		Dashboard.update_shelter_card(shelter_list.get_child(index), manager.shelters[index])
 	_refresh_inspector()
@@ -575,6 +647,7 @@ func _on_impact(result: Dictionary) -> void:
 	summary_panel.visible = true
 	summary_label.text = "IMPACT / %d sheltered / %d exposed / %d total. Evacuation and admissions stopped. Blast outcomes recorded." % [result["sheltered"], result["exposed"], result["population"]]
 	summary_label.text += " %d dead / %d injured / %d shelters destroyed." % [result["dead"],result["injured"],result["destroyed_shelters"]]
+	if manager.social!=null: summary_label.text+="\nShelter routines now continue for ten simulated days."
 	_refresh_live_ui()
 
 
@@ -614,7 +687,7 @@ func _export_trace() -> void:
 	if file == null:
 		manager.log_event("ERROR", "Cannot write trace: " + error_string(FileAccess.get_open_error()))
 		return
-	file.store_string(JSON.stringify(_json_value({"sirens": manager.sirens,"warning_config": manager.warning_config, "nuclear": manager.nuclear, "world_objects": manager.world_objects, "structures": manager.structures, "points_of_interest": manager.points_of_interest, "summary": manager.summary, "seed": manager.seed_value, "settings": manager.settings, "living": manager.living, "alarm_is_real": manager.alarm_is_real, "countdown": manager.countdown_seconds, "events": manager.events, "environment": manager.environment_events, "agents": manager.agents, "shelters": manager.shelters}), "\t"))
+	file.store_string(JSON.stringify(_json_value({"sirens": manager.sirens,"warning_config": manager.warning_config, "nuclear": manager.nuclear, "world_objects": manager.world_objects, "structures": manager.structures, "points_of_interest": manager.points_of_interest, "world": manager.world.current, "world_json": manager.world.current_json, "world_metadata": manager.world_metadata(), "summary": manager.summary, "seed": manager.seed_value, "settings": manager.settings, "living": manager.living, "alarm_is_real": manager.alarm_is_real, "countdown": manager.countdown_seconds, "events": manager.events, "environment": manager.environment_events, "agents": manager.agents, "shelters": manager.shelters}), "\t"))
 	file.close()
 	manager.log_event("EXPORT", "Trace saved: " + ProjectSettings.globalize_path(path), "director")
 
@@ -651,13 +724,37 @@ static func _format_time(seconds: float) -> String:
 	return "%02d:%02d" % [whole / 60, whole % 60]
 
 func _start_map_view() -> void:
-	intro_panel.hide()
-	_toggle_drawer("")
-	manager.start()
-	map_view.grab_focus()
+	if manager.world.busy or (launch_menu!=null and launch_menu.busy): return
+	if launch_menu!=null: launch_menu.begin()
+	await get_tree().process_frame
+	if manager.world.current.is_empty():
+		var seed_value: int=int(launch_menu.seed_input.value) if launch_menu!=null else manager.world.random_seed()
+		if not manager.generate_world(seed_value) or not await manager.world.completed:
+			if launch_menu!=null: launch_menu.fail(manager.world.error)
+			return
+	elif manager.agents.is_empty(): manager.initialize_run()
+	if manager.agents.is_empty() or map_view.city==null:
+		if launch_menu!=null: launch_menu.fail("Scenario preparation failed. Check the simulation log and try another seed.")
+		return
+	if launch_menu!=null: launch_menu.report(85,"Preparing scenario, agents and city presentation")
+	await get_tree().process_frame
+	if map_view.city!=null and map_view.city.streamer!=null:
+		var total:=maxi(1,map_view.city.streamer.queue.size())
+		while not map_view.city.streamer.queue.is_empty():
+			if launch_menu!=null: launch_menu.report(85+14*(1.0-float(map_view.city.streamer.queue.size())/total),"Preparing visible city chunks")
+			await get_tree().process_frame
+	if launch_menu!=null: await launch_menu.finish()
+	intro_panel.hide(); _toggle_drawer(""); manager.start(); map_view.grab_focus()
 
 func _toggle_drawer(kind: String) -> void:
 	_show_drawer("" if kind == active_drawer else kind)
+
+
+func _open_asset_library() -> void:
+	if asset_window == null or not is_instance_valid(asset_window):
+		asset_window = AssetBrowser.new()
+		add_child(asset_window)
+	asset_window.popup_centered(Vector2i(1180, 760))
 
 func _show_drawer(kind: String) -> void:
 	active_drawer = kind
@@ -691,6 +788,11 @@ func _toggle_fullscreen() -> void:
 		fullscreen_button.tooltip_text = "Restore windowed mode / F11"
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode==KEY_ESCAPE and launch_menu!=null:
+		if not active_drawer.is_empty(): _toggle_drawer("")
+		elif launch_menu.visible and not launch_menu.busy and not manager.agents.is_empty(): launch_menu.hide(); manager.start()
+		else: launch_menu.open()
+		get_viewport().set_input_as_handled(); return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F11:
 			_toggle_fullscreen()
