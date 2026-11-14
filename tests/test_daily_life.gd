@@ -25,7 +25,7 @@ func run() -> void:
 	var indoor: Array=manager.agents.filter(func(a):return a.get("indoor_id","")!="")
 	var driving: Array=social.vehicles.filter(func(v):return v.status=="MOVING")
 	check(indoor.size()>manager.agents.size()/3,"diverse indoor civilian/worker spawning")
-	check(not driving.is_empty(),"driving vehicle spawning")
+	check(social.vehicles.any(func(v):return v.get("stored_in","")!=""),"civilian cars start in garage storage")
 	check(manager.agents.any(func(a):return a.location_mode=="PARKED_CAR"),"parked-car occupants spawn")
 	for a in manager.agents: check(social.daily.valid_spawn(a),"validated spawn "+a.id)
 	for i in range(social.vehicles.size()):

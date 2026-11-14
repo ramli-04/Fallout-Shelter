@@ -407,7 +407,7 @@ func plan(v: Dictionary, tangent: Vector2, desired: float, seconds: float) -> Di
 			v.target_lane_offset=float(v.get("lane_offset",0)); desired=0
 			if v.driving_reason!="YIELD_PEDESTRIAN": v.driving_reason="MANOEUVRE_ABORT"
 	v.lane_change_rate=settings.lane_change_units_per_second
-	v.curb_clearance=.32 if mode in ["EVADING","RETURNING"] else .15
+	v.curb_clearance=.32 if in_parking or mode in ["EVADING","RETURNING"] else .15
 	if social.manager.elapsed_seconds<float(v.get("ai_brake_until",0)): desired=minf(desired,maxf(0,v.speed-v.braking*seconds))
 	# Sharp turns need lower entry speeds; this operates before the bounded steering step.
 	var turn: float=absf(wrapf(tangent.angle()-float(v.heading),-PI,PI))

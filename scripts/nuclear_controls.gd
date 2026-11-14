@@ -52,7 +52,7 @@ func configure(sim: Node, map: Node) -> void:
 		if manager.phase == "PREPARATION": manager.nuclear["severity"] = value)
 	var zones := CheckBox.new()
 	zones.text = "Show blast zones"
-	zones.button_pressed = true
+	zones.button_pressed = view.show_zones
 	add_child(zones)
 	zones.toggled.connect(func(value):
 		view.show_zones = value

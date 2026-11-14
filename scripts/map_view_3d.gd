@@ -13,7 +13,7 @@ var social_world: Node3D
 var manager: Node
 var marker: Node3D
 var blast_zones: Node3D
-var show_zones := true
+var show_zones := false
 var occlusion_age := 0.0
 signal object_selected(kind: String, record: Dictionary)
 const Coordinates = preload("res://scripts/three_d/world_coordinates.gd")

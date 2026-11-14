@@ -6,7 +6,7 @@ func run() -> void:
 	var view=preload("res://scripts/map_view_3d.gd").new(); view.manager=manager; root.add_child(view); view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	view.display_run(manager.agents,manager.shelters,true,manager.social.companions)
 	var map=preload("res://scripts/city_map.gd")
-	for kind in ["Police Station","Fire Station","corner","edge"]:
+	for kind in ["Police Station","Fire Station","corner","garage","ramp","edge"]:
 		var target:=Vector2(-100,map.MAP_SIZE.y*.5)
 		if kind=="corner":
 			var best:=INF
@@ -19,6 +19,8 @@ func run() -> void:
 				if absf(a.dot(b))>.4: continue
 				var distance: float=p.distance_squared_to(map.MAP_SIZE*.5)
 				if distance<best: best=distance; target=p
+		elif kind=="garage" and not map.garage_sites.is_empty(): target=map.garage_sites[0].center
+		elif kind=="ramp": target=map.ramps[0][map.ramps[0].size()/2]
 		elif kind!="edge":
 			for poi in map.pois:
 				if poi.kind==kind: target=poi.position; break

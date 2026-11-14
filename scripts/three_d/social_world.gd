@@ -26,8 +26,7 @@ func rebuild() -> void:
 	school=Node3D.new(); school.position=C.to_world(manager.social.school_position)
 	add_child(school)
 	for v in manager.social.vehicles:
-		var physical:=G.collider(self,Vector3(v.width*.1,v.body_height,v.length*.1),C.to_world(v.position)+Vector3.UP*v.body_height*.5,32)
-		physical.collision_mask=1|32|64; vehicle_bodies[v.id]=physical
+		if v.get("stored_in","")=="": _make_body(v)
 		if _wanted(v): _make_car(v)
 	var mesh:=ImmediateMesh.new(); mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	for edge in Map.roads:
@@ -38,8 +37,12 @@ func rebuild() -> void:
 	mesh.surface_end()
 	debug_mesh=MeshInstance3D.new(); debug_mesh.mesh=mesh; debug_mesh.material_override=G.material(Color("e6bd60")); debug_mesh.material_override.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED; add_child(debug_mesh)
 
+func _make_body(v: Dictionary) -> void:
+	var physical:=G.collider(self,Vector3(v.width*.1,v.body_height,v.length*.1),C.to_world(v.position)+Vector3.UP*v.body_height*.5,32)
+	physical.collision_mask=1|32|64; vehicle_bodies[v.id]=physical
+
 func _wanted(v: Dictionary) -> bool:
-	if v.status=="REMOVED": return false
+	if v.status=="REMOVED" or v.get("stored_in","")!="": return false
 	if view==null or view.city==null or view.city.streamer==null: return true
 	return not view.render_config.enabled or view.city.streamer.wants_point(v.position)
 
@@ -57,9 +60,12 @@ func _process(delta: float) -> void:
 	var debug: bool=manager.get_meta("road_debug",false)
 	if is_instance_valid(debug_mesh): debug_mesh.visible=debug
 	for v in manager.social.vehicles:
+		if v.get("stored_in","")!="":
+			if vehicle_bodies.has(v.id): vehicle_bodies[v.id].queue_free(); vehicle_bodies.erase(v.id)
+		elif not vehicle_bodies.has(v.id): _make_body(v)
 		var physical: StaticBody3D=vehicle_bodies.get(v.id)
 		if physical!=null:
-			physical.position=C.to_world(v.position,(.07 if v.status=="PARKED" else .25)+.97*float(v.get("height",0))+maxf(0,float(v.get("curb_clearance",.15))-.15)+v.body_height*.5)
+			physical.position=C.to_world(v.position,(.3 if absf(float(v.get("height",0)))>.01 else .12)+float(v.get("height",0))+maxf(0,float(v.get("curb_clearance",.15))-.15)+v.body_height*.5)
 			var center: Vector2=v.get("body_position",v.position); physical.position.x=center.x*.1; physical.position.z=center.y*.1
 			physical.rotation.y=-float(v.get("heading",v.parking_heading))+PI*.5
 			physical.collision_layer=32 if v.status!="REMOVED" else 0
@@ -68,7 +74,7 @@ func _process(delta: float) -> void:
 			continue
 		if not cars.has(v.id): _make_car(v)
 		var car: Node3D=cars[v.id]
-		car.position=C.to_world(v.position,(.07 if v.status=="PARKED" else .25)+.97*float(v.get("height",0)))
+		car.position=C.to_world(v.position,(.3 if absf(float(v.get("height",0)))>.01 else .12)+float(v.get("height",0)))
 		car.position.y+=maxf(0,float(v.get("curb_clearance",.15))-.15)
 		car.rotation.y=-float(v.get("heading",v.parking_heading))+PI*.5
 		var body: Vector2=v.get("body_position",v.position)

@@ -41,6 +41,7 @@ static var roadblock_data := {}
 static var interior_cutaway := false
 static var interior_data: Dictionary = {}
 static var parking_lots: Array[Dictionary] = []
+static var garage_sites: Array=[]
 static var ramps: Array[PackedVector2Array] = []
 static var highways: Array[PackedVector2Array] = []
 
@@ -180,6 +181,7 @@ static func load_layout(data: Dictionary, options: Dictionary = {}, started: int
 	_build_terrain_heights()
 	_build_walk_grid()
 	_rebuild_obstacle_index()
+	preload("res://scripts/vehicle_garages.gd").configure(load("res://scripts/city_map.gd"))
 	# Runtime connectivity and obstacle-aware shelter access are checked as well.
 	for site in sites.values():
 		if graph.get_id_path(0,graph.get_closest_point(site)).is_empty() or free_route(nearest_lane_point(MAP_SIZE*.5),site).is_empty():
@@ -284,6 +286,15 @@ static func _build_foundations() -> void:
 	foundation_index.clear(); foundation_pads.clear()
 	var pads: Array=lots.duplicate()
 	for lot in parking_lots: pads.append(lot.bounds)
+	for index in range(building_data.size()):
+		if not building_data[index].has("station_art"): continue
+		var art: Dictionary=building_data[index].station_art
+		var origin: Vector2=lots[index].get_center()+art.offset/.1
+		var ground_center: float=.97-float(art.ground_depth)/(2*float(art.height))
+		var bounds:=Rect2(origin,Vector2.ZERO)
+		for uv in [Vector2(.05,.55),Vector2(.95,.55),Vector2(.05,.98),Vector2(.95,.98)]:
+			bounds=bounds.expand(origin+preload("res://scripts/station_parking.gd").offset(uv,art.width,art.height,ground_center,false))
+		pads.append(bounds)
 	for parcel in shelter_parcels.values(): pads.append(parcel.bounds)
 	# Nearby pads share a grade when their terrain support cells overlap. This
 	# prevents one foundation's blend from lifting a neighbouring house corner.
@@ -654,7 +665,9 @@ static func route_height(point: Vector2, tangent: Vector2, previous: float) -> f
 		var d: float=point.distance_squared_to(projected)
 		if d>100: continue
 		var value: float=10 if edge.get("elevated",false) else 0
-		if edge.get("ramp",false): value=10*(1-(float(i-1)+points[i-1].distance_to(projected)/maxf(.001,points[i-1].distance_to(points[i])))/(points.size()-1))
+		if edge.get("ramp",false):
+			var fraction: float=(float(i-1)+points[i-1].distance_to(projected)/maxf(.001,points[i-1].distance_to(points[i])))/(points.size()-1)
+			value=lerpf(elevation(points[0])+10,elevation(points[-1]),fraction)-elevation(point)
 		var alignment: float=absf(tangent.dot((points[i]-points[i-1]).normalized()))
 		var score: float=d+absf(value-previous)*.1+(1-alignment)*.1
 		if score<best: best=score; height=value

@@ -96,7 +96,17 @@ func initialize(owner_social: RefCounted) -> void:
 		a.state="ROUTINE"
 		for child in a.relationships:
 			if a.relationships[child]=="child": a.known_locations[child]={"position":social.school_position,"source":"remembered school schedule","timestamp":0.0,"confidence":.5}
+	var garage_departures: Dictionary={}
 	for v in social.vehicles:
+		if v.get("stored_in","")!="":
+			var garage: Dictionary=preload("res://scripts/vehicle_garages.gd").site(v,Map)
+			var owner: Dictionary=social.by_id[v.driver]
+			if not garage.is_empty() and not garage_departures.has(garage.id) and rng.randf()<social.config.vehicles_in_use_rate and Map.clear_point(garage.waiting_point,4):
+				if owner.indoor_id!="": interiors.rooms[owner.indoor_id].occupants.erase(owner.id)
+				owner.indoor_id=""; owner.interior_transition=""; owner.position=garage.waiting_point; owner.previous_position=owner.position; owner.location_mode="GARAGE"
+				schedule(owner,"DRIVE",owner.work_building,true); garage_departures[garage.id]=true
+			continue
+		if v.kind in ["Police","Fire"]: continue
 		var driver: Dictionary=social.by_id[v.driver]
 		if driver.school!="" or driver.age<18 or rng.randf()>social.config.vehicles_in_use_rate: continue
 		if rng.randf()<.55 and driving_spawn(v):
@@ -213,6 +223,10 @@ func tick(seconds: float) -> void:
 
 func reserve_destination(v: Dictionary, target: Vector2) -> Dictionary:
 	if parking_destinations.has(v.id): return parking_destinations[v.id]
+	if v.get("garage_id","")!="":
+		var bay: Dictionary=preload("res://scripts/vehicle_garages.gd").destination(v,social)
+		if not bay.is_empty(): parking_destinations[v.id]=bay
+		return bay
 	var candidates: Array=[]
 	for lot in Map.parking_lots:
 		if not preload("res://scripts/station_parking.gd").allows(lot,v): continue
@@ -245,6 +259,7 @@ func vehicle_arrived(v: Dictionary, driver: Dictionary) -> void:
 		bay.occupied_by=v.id; v.parking_bay=bay.id; v.heading=bay.heading; v.parking_heading=bay.heading
 		v.parking_exit=bay.approach.duplicate(); v.parking_exit.reverse()
 		parking_destinations.erase(v.id)
+		if bay.has("garage_id"): preload("res://scripts/vehicle_garages.gd").store(v,social)
 	driver.social_target=""; driver.routine_use_vehicle=false; driver.location_mode="OUTDOOR"
 	driver.routine="WORK"; driver.routine_until=social.manager.elapsed_seconds+45
 

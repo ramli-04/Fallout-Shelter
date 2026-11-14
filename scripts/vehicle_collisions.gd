@@ -12,6 +12,7 @@ static func radius_on(v: Dictionary, axis: Vector2) -> float:
 	return absf(forward.dot(axis))*float(v.get("length",40))*.5+absf(forward.orthogonal().dot(axis))*float(v.get("width",18))*.5
 
 static func contact(a: Dictionary, a_start: Vector2, a_end: Vector2, b: Dictionary, b_start: Vector2, b_end: Vector2) -> Dictionary:
+	if a.get("stored_in","")!="" or b.get("stored_in","")!="": return {}
 	if absf(float(a.get("height",0))-float(b.get("height",0)))>maxf(float(a.get("body_height",1.5)),float(b.get("body_height",1.5))): return {}
 	var separation: Vector2=b_start-a_start
 	var relative: Vector2=(b_end-b_start)-(a_end-a_start)
@@ -56,7 +57,7 @@ static func candidates(vehicles: Array, previous: Dictionary) -> Array:
 	var result: Array=[]
 	var seen: Dictionary={}
 	for v in vehicles:
-		if v.status in ["REMOVED","DESTROYED"]: continue
+		if v.status in ["REMOVED","DESTROYED"] or v.get("stored_in","")!="": continue
 		var rect:=swept_bounds(v,previous.get(v.id,{}).get("body",body_position(v)),body_position(v))
 		for x in range(int(floorf(rect.position.x/128)),int(floorf(rect.end.x/128))+1):
 			for y in range(int(floorf(rect.position.y/128)),int(floorf(rect.end.y/128))+1):

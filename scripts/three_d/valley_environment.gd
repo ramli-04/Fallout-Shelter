@@ -80,6 +80,9 @@ func _ready() -> void:
 		var key: String="ramp%d"%i
 		_ribbon(Map.ramps[i],7.5*float(Map.generation_settings.road_width_multiplier),.3,key,Color("515957"))
 		ribbons[key].profile=Map.ramps[i]
+		var edge_key: String="ramp_edge%d"%i
+		_ribbon(Map.ramps[i],8.1*float(Map.generation_settings.road_width_multiplier),.28,edge_key,Color("a9a79c"))
+		ribbons[edge_key].profile=Map.ramps[i]
 	_commit_ribbons()
 	for key in batches:
 		if key=="asphalt" and not art_chunks.is_empty():
@@ -95,6 +98,7 @@ func _ready() -> void:
 		add_child(node)
 		if key in ["curb","sidewalk"]:
 			var body:=StaticBody3D.new(); body.collision_layer=64; body.collision_mask=32
+			body.add_to_group("driveable_pavement")
 			var collision:=CollisionShape3D.new(); collision.shape=node.mesh.create_trimesh_shape()
 			collision.shape.backface_collision=true; body.add_child(collision); add_child(body)
 	if not streaming_enabled:
@@ -231,7 +235,7 @@ func _road_vertex(point: Vector2, definition: Dictionary) -> Vector3:
 			var distance:=projected.distance_squared_to(point)
 			if distance<closest: closest=distance; along=cursor+profile[i-1].distance_to(projected)
 			cursor+=profile[i-1].distance_to(profile[i])
-		height+=10*(1-along/maxf(.001,total))
+		height=lerpf(Map.elevation(profile[0])+10,Map.elevation(profile[-1]),along/maxf(.001,total))+float(definition.offset)
 	return Vector3(point.x*.1,height,point.y*.1)
 
 func _json_vectors(value: Variant) -> Variant:
@@ -288,12 +292,17 @@ func _partition_roads(groups: Dictionary) -> void:
 			if key in ["curb","sidewalk"]: physical.append_array(vertices)
 		if not physical.is_empty():
 			var body:=StaticBody3D.new(); body.collision_layer=64; body.collision_mask=32
+			body.add_to_group("driveable_pavement")
 			var shape:=CollisionShape3D.new(); var mesh:=ConcavePolygonShape3D.new(); mesh.set_faces(physical); mesh.backface_collision=true
 			shape.shape=mesh; body.add_child(shape); add_child(body)
 
 func make_chunk(cell: Vector2i) -> Node3D:
 	var root:=Node3D.new(); root.name="RoadSurfaces"
 	for key in road_chunks.get(cell,{}):
+		if key=="highway_elevated" and not Map.highways.is_empty():
+			_ramp_art(root,road_chunks[cell][key],Map.highways[0],210*float(Map.generation_settings.road_width_multiplier),6); continue
+		if key.begins_with("ramp") and not key.begins_with("ramp_edge"):
+			_ramp_art(root,road_chunks[cell][key],ribbons[key].profile,75*float(Map.generation_settings.road_width_multiplier)); continue
 		if key=="sidewalk":
 			preload("res://scripts/three_d/reference_road_tiles.gd").paving_surface(root,road_chunks[cell][key]); continue
 		if key=="asphalt":
@@ -310,6 +319,23 @@ func make_chunk(cell: Vector2i) -> Node3D:
 
 	decorate_damage(root,bounds)
 	return root
+
+func _ramp_art(parent: Node3D,vertices: PackedVector3Array,path: PackedVector2Array,width: float=75.0,lanes: int=2) -> void:
+	var surface:=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for vertex in vertices:
+		if lanes==6: surface.add_vertex(vertex); continue
+		var point:=Coordinates.to_simulation(vertex)
+		var nearest:=INF; var along:=0.0; var cursor:=0.0; var across:=0.0
+		for i in range(1,path.size()):
+			var projected:=Geometry2D.get_closest_point_to_segment(point,path[i-1],path[i])
+			var distance:=point.distance_squared_to(projected)
+			if distance<nearest:
+				nearest=distance; along=cursor+path[i-1].distance_to(projected)
+				across=(point-projected).dot((path[i]-path[i-1]).normalized().orthogonal())
+			cursor+=path[i-1].distance_to(path[i])
+		surface.set_uv(Vector2(.5+across/width,along/width)); surface.set_uv2(Vector2.ZERO); surface.add_vertex(vertex)
+	var mesh:=MeshInstance3D.new(); mesh.name="TexturedHighwayRamp"; mesh.mesh=surface.commit()
+	mesh.material_override=preload("res://scripts/three_d/road_ground_art.gd").plain_asphalt_material() if lanes==6 else preload("res://scripts/three_d/reference_road_tiles.gd").material(lanes); mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; parent.add_child(mesh)
 
 func decorate_damage(root: Node3D,bounds: Rect2) -> void:
 	if damage_config.is_empty() or root.has_meta("road_damage"): return
@@ -331,7 +357,7 @@ func _emit_triangle(surface: SurfaceTool, a: Vector2, b: Vector2, c: Vector2, of
 				var d:=projected.distance_squared_to(point)
 				if d<closest: closest=d; along=cursor+profile[i-1].distance_to(projected)
 				cursor+=profile[i-1].distance_to(profile[i])
-			height+=10*(1-along/maxf(.001,total))
+			height=lerpf(Map.elevation(profile[0])+10,Map.elevation(profile[-1]),along/maxf(.001,total))+offset
 		surface.add_vertex(Vector3(point.x*.1,height,point.y*.1)); road_vertices+=1
 
 func _marks(points: PackedVector2Array, highway: bool) -> void:
@@ -375,7 +401,9 @@ func _background_height(point: Vector2) -> float:
 	var outside := maxf(maxf(-uv.x,uv.x-1),maxf(-uv.y,uv.y-1))
 	var blend := smoothstep(0.04,0.55,outside)
 	var peaks := 65+absf(Map.noise.get_noise_2d(point.x*0.12,point.y*0.12))*180
-	return lerpf(Map.elevation(point),peaks,blend)
+	var edge: Vector2=point.clamp(Vector2.ZERO,Map.MAP_SIZE)
+	var edge_grade: float=lerpf(Map.elevation(edge),Map.elevation(point),smoothstep(0,200,point.distance_to(edge)))
+	return lerpf(edge_grade,peaks,blend)
 
 func _build_background() -> void:
 	var surface := SurfaceTool.new()

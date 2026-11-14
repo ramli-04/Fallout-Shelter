@@ -39,10 +39,12 @@ but are no longer selected for live buildings. Trees, shrubs, fences and road pr
 remain individually addressable atlas resources; no large reference sheet is pasted
 into the world.
 
-Every supplied ground region repeats at **1 x 1 rendered metre**. Original grass,
-dirt, flower, bush and rock detail is retained. Neighboring textures blend across
-coherent patches; seeded quarter turns reduce repetition. Playable ground and the
-surrounding terrain share this material, including distance filtering.
+Ground now uses only the plain green turf region, with a soft grass texture and
+consistent green tint matching the user's lawn reference. Dirt/flower/bush biome
+bands are disabled. Playable and background terrain share this unshaded material
+and matching perimeter heights; the overview terrain is no longer lowered below
+the surrounding ground. Blast-zone outline rings are hidden by default and remain
+available through the Director checkbox.
 
 `resources/building_art_scale.json` defines a single width for each current artwork,
 with a 2.1 m human doorway as the scale reference. Sprite height follows its aspect
@@ -110,3 +112,35 @@ curb ramps, concrete slab paving and parking bay paint. Old generated crossings,
 parking outlines and public-parking ground decals are suppressed to prevent double
 paint. Existing street vegetation and lampposts remain separate world objects.
 See `assets/reference_city/STREET_SURFACES_V2.md` for generation provenance.
+
+
+Garage storage and visual repair
+-------------------------------
+
+There are at most three `new_parking` garage buildings. The remaining industrial
+buildings use the current office artwork. Garage art, scale and colors are unchanged.
+`scripts/vehicle_garages.gd` selects garage sites deterministically and assigns at
+most twelve civilian-owned cars to each (36 maximum across three garages). Cars
+start stored, without a visible mesh or collision footprint. Owners walk to an
+entrance-side waiting point; the car spawns only when the shared exit and merge
+are clear. Cars returning during daily routines are stored again. Ownership,
+storage and departure fields are recorded in existing replay frames.
+
+Police/fire fleets retain their station bays. Their exit now stays reserved until
+the departing vehicle clears the street merge, and they are not randomly placed
+on roads during initialization. Surface parking artwork remains unchanged.
+
+Ramps now have atlas asphalt, edge paint and concrete edge strips instead of a
+flat gray ribbon. Their height follows the endpoint grades, and vehicles use the
+same grade. Highways retain six lane markings in both detailed and overview views.
+Billboard trees are kept clear of elevated decks and ramps to avoid sliced crowns.
+
+Checks: `test_garage_storage.gd -- physics`, `test_parking_departure.gd -- police all physics`,
+`test_parking_departure.gd -- fire all physics`, `test_daily_life.gd`, and
+`test_visual_streaming.gd`. Existing ObjectDB shutdown warnings are unrelated.
+
+Garage-side green slivers from an adjacent atlas hedge are clipped out without
+changing the garage artwork. Assigned parking exits can cross their driveable
+pavement surfaces while still colliding with walls, trees, poles and vehicles.
+At most one owner per garage can start a routine departure at initialization;
+these cars still spawn through the same checked exit instead of on random roads.

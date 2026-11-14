@@ -151,6 +151,10 @@ func _add_vehicle(a: Dictionary, kind: String) -> void:
 	var spec: Dictionary=catalog[model]
 	var v: Dictionary=spec.duplicate(true)
 	v.merge({"id":id,"owner":a.id,"driver":a.id,"kind":kind,"model":model,"passengers":[],"speed":0.0,"health":100.0,"status":"PARKED","route":PackedVector2Array(),"route_index":0,"destination":"","height":0.0,"edge":-1,"next_route":0.0,"steering":0.0,"collision_state":"CLEAR"})
+	if kind=="Civilian":
+		var garage: Dictionary=preload("res://scripts/vehicle_garages.gd").allocate(v,vehicles,Map,a.position)
+		if garage.is_empty(): return
+		a.vehicle_id=id; v.body_height=spec.height; vehicles.append(v); return
 	var bay: Dictionary=traffic.reserve_spawn(v,vehicles,a.position)
 	if bay.is_empty(): return
 	a.vehicle_id=id
@@ -520,6 +524,8 @@ func board(vehicle: Dictionary, passenger: Dictionary) -> bool:
 	if passenger.id in vehicle.passengers: return true
 	if passenger.health<=0 or passenger.get("indoor_id","")!="": return false
 	if vehicle.passengers.size()>=vehicle.capacity or passenger.position.distance_to(vehicle.position)>65 or vehicle.speed>1 or passenger.state in ["SHELTERED","EXPOSED","SAFE"]: return false
+	if vehicle.get("stored_in","")!="":
+		if passenger.id!=vehicle.driver or not preload("res://scripts/vehicle_garages.gd").release(vehicle,self): return false
 	if passenger.id not in vehicle.passengers: vehicle.passengers.append(passenger.id)
 	passenger.riding=vehicle.id; passenger.location_mode="VEHICLE"
 	return true
@@ -571,9 +577,14 @@ func _move_vehicles(seconds: float) -> void:
 		else: continue
 		if v.status=="PARKED":
 			# Driver must walk to their parked car before boarding.
+			if v.get("stored_in","")!="":
+				var garage: Dictionary=preload("res://scripts/vehicle_garages.gd").site(v,Map)
+				if not garage.is_empty() and driver.position.distance_to(garage.waiting_point)>10:
+					_walk_toward(driver,garage.waiting_point,driver.movement_speed,seconds); continue
 			if driver.position.distance_to(v.position)>35:
 				_walk_toward(driver,v.position,driver.movement_speed,seconds)
 				continue
+			if not preload("res://scripts/vehicle_garages.gd").release(v,self): v.driving_reason="WAIT_GARAGE_EXIT"; continue
 			if not traffic.departure_clear(v,vehicles): v.driving_reason="WAIT_PARKING_EXIT"; continue
 			if not driver.get("police_unit_busy",false) and not companion_runtime.prepare_vehicle_departure(driver,v): continue
 			if not board(v,driver): continue

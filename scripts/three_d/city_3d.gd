@@ -57,6 +57,14 @@ func _ready() -> void:
 
 func _prepare_landscape_data() -> void:
 	landscape_trees=CityMap.vegetation_data.duplicate(true)
+	# Keep billboard canopies away from decks, not only their tiny trunk bounds.
+	landscape_trees=landscape_trees.filter(func(tree):
+		var point: Vector2=CityMap._v2(tree.position)
+		for road in CityMap.roads:
+			if not road.get("elevated",false) and not road.get("ramp",false): continue
+			for i in range(1,road.points.size()):
+				if point.distance_to(Geometry2D.get_closest_point_to_segment(point,road.points[i-1],road.points[i]))<float(road.width)*.5+maxf(65,float(tree.scale)*100): return false
+		return true)
 	if not CityMap.terrain_definition.is_empty(): return
 	var rng:=RandomNumberGenerator.new(); rng.seed=CityMap.map_seed+61909
 	for i in range(7000):

@@ -34,7 +34,7 @@ func reset() -> void:
 func prepare_spatial(sim: RefCounted, step_active: bool = false) -> void:
 	vehicle_cells.clear(); pedestrian_cells.clear(); vehicle_cell_by_id.clear(); pedestrian_cell_by_id.clear()
 	for vehicle in sim.vehicles:
-		if vehicle.status!="REMOVED": _index_actor(vehicle_cells,vehicle_cell_by_id,vehicle,SAT.body_position(vehicle))
+		if vehicle.status!="REMOVED" and vehicle.get("stored_in","")=="": _index_actor(vehicle_cells,vehicle_cell_by_id,vehicle,SAT.body_position(vehicle))
 	for agent in sim.manager.agents:
 		if agent.get("riding","")!="" or agent.get("indoor_id","")!="" or agent.state in ["SHELTERED","SAFE","EXPOSED"]: continue
 		_index_actor(pedestrian_cells,pedestrian_cell_by_id,agent,agent.position)
@@ -48,7 +48,7 @@ func end_spatial_step() -> void:
 
 func update_vehicle(vehicle: Dictionary) -> void:
 	_remove_actor(vehicle_cells,vehicle_cell_by_id,vehicle)
-	if vehicle.status!="REMOVED": _index_actor(vehicle_cells,vehicle_cell_by_id,vehicle,SAT.body_position(vehicle))
+	if vehicle.status!="REMOVED" and vehicle.get("stored_in","")=="": _index_actor(vehicle_cells,vehicle_cell_by_id,vehicle,SAT.body_position(vehicle))
 
 func _index_actor(grid: Dictionary, cells_by_id: Dictionary, actor: Dictionary, point: Vector2) -> void:
 	var cell:=Vector2i((point/SPATIAL_CELL_SIZE).floor())
@@ -124,6 +124,7 @@ func departure_clear(v: Dictionary, vehicles: Array) -> bool:
 		if not lot.bounds.grow(8).has_point(v.position): continue
 		for other in vehicles:
 			if other.id!=v.id and parking_maneuver(other) and other.get("departure_lot","")==lot.id and other.status not in ["ACCIDENT","DESTROYED","REMOVED"]: return false
+			if other.id!=v.id and other.get("departure_lot","")==lot.id and other.status!="REMOVED" and other.position.distance_to(lot.road_entry)<float(other.length)+float(v.length)+30: return false
 		v["departure_lot"]=lot.id
 		break
 	return true
@@ -299,12 +300,17 @@ func physics_query(v: Dictionary, start: Vector2, finish: Vector2) -> Dictionary
 	var space: PhysicsDirectSpaceState3D=source.get_world_3d().direct_space_state if is_instance_valid(source) else tree.root.find_world_3d().direct_space_state
 	var shape:=BoxShape3D.new(); shape.size=Vector3(v.length*.1,maxf(.3,float(v.get("body_height",1.5))-.4),v.width*.1)
 	var query:=PhysicsShapeQueryParameters3D.new(); query.shape=shape; query.collision_mask=1|64
+	var exclusions: Array[RID]=[]
+	# Assigned parking exits and deliberate curb maneuvers cross the footway.
+	# Its thin floor triangles are not walls; buildings, poles and trees remain solid.
+	if parking_maneuver(v) or float(v.get("curb_clearance",.15))>=.3:
+		for floor in tree.get_nodes_in_group("driveable_pavement"):
+			if floor is StaticBody3D: exclusions.append(floor.get_rid())
 	if v.get("kind","Civilian")!="Civilian":
-		var exclusions: Array[RID]=[]
 		for record in barrier_bodies.values():
 			var body: StaticBody3D=record.body.get_ref()
 			if is_instance_valid(body) and record.kind in ["police","checkpoint","evacuation_checkpoint","restricted"]: exclusions.append(body.get_rid())
-		query.exclude=exclusions
+	query.exclude=exclusions
 	var coordinates=preload("res://scripts/three_d/world_coordinates.gd")
 	query.transform=Transform3D(Basis(Vector3.UP,-float(v.heading)),coordinates.to_world(start,float(v.height)+float(v.get("curb_clearance",.15))+shape.size.y*.5))
 	query.motion=coordinates.to_world(finish,float(v.height)+float(v.get("curb_clearance",.15))+shape.size.y*.5)-query.transform.origin

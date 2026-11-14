@@ -5,7 +5,7 @@ static func material() -> ShaderMaterial:
 	var seed: float=preload("res://scripts/city_map.gd").map_seed%10000
 	if shared!=null and is_equal_approx(float(shared.get_shader_parameter("seed")),seed): return shared
 	var shader:=Shader.new(); shader.code="""shader_type spatial;
-render_mode cull_disabled;
+render_mode unshaded,cull_disabled;
 uniform sampler2D atlas : source_color,filter_linear_mipmap,repeat_disable;
 uniform vec2 source_size=vec2(1254.0);
 uniform vec2 tops[13]; uniform vec2 across[13]; uniform vec2 along[13];
@@ -22,22 +22,13 @@ vec3 sample_ground(int index,vec2 uv,float lod){
 }
 void vertex(){ground=(MODEL_MATRIX*vec4(VERTEX,1.0)).xz;}
 void fragment(){
- vec2 cell=floor(ground/tile_metres);
- vec2 local=fract(ground/tile_metres);
- int turn=int(hash(cell)*4.0);
- if(turn==1)local=vec2(local.y,1.0-local.x);
- if(turn==2)local=vec2(1.0-local.x,1.0-local.y);
- if(turn==3)local=vec2(1.0-local.y,local.x);
- vec2 uv=.10+.80*local;
+ vec2 uv=.15+.70*abs(fract(ground/tile_metres)*2.0-1.0);
  float pixel=max(length(dFdx(ground)),length(dFdy(ground)));
  float lod=clamp(log2(max(pixel*120.0/tile_metres,.001)),0.0,4.0);
- // Every full parcel remains visible, including flowers, dirt and rock detail.
- // Coherent patches, not a different flower/dirt tile on every metre.
- float region=clamp((noise(ground*.035)-.15)/.70,0.0,.999)*12.0;
- int index=int(floor(region));
- vec3 color=mix(sample_ground(index,uv,lod),sample_ground(min(index+1,12),uv,lod),smoothstep(.0,1.0,fract(region)));
- color=mix(color,vec3(dot(color,vec3(.2126,.7152,.0722))),.18);
- ALBEDO=color*vec3(.78,.86,.78); ROUGHNESS=1.0;
+ // Plain green turf from the reference, without dirt/bush biome bands.
+ vec3 color=sample_ground(2,uv,lod);
+ float detail=clamp(dot(color,vec3(.2126,.7152,.0722))*1.5,.0,1.0);
+ ALBEDO=vec3(.275,.45,.09)*(.95+detail*.10+noise(ground*3.0)*.02); ROUGHNESS=1.0;
 }
 """
 	var art=preload("res://scripts/three_d/road_ground_art.gd"); var config:=art.configuration()

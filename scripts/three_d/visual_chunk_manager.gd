@@ -64,7 +64,7 @@ func refresh() -> void:
 	near_bounds=visible_bounds.grow(float(config.preload_distance))
 	var detailed: bool=camera.size<=float(config.detail_view_size)
 	overview.visible=true
-	overview.get_child(0).position.y=-5.0 if detailed else -1.0
+	overview.get_child(0).position.y=0.0
 	overview.get_child(2).visible=not detailed
 	overview.get_child(2).position.y=-.5 if detailed else 0.0
 	var keep:=visible_bounds.grow(float(config.unload_distance))
@@ -165,7 +165,7 @@ func _terrain(bounds: Rect2, step_override: float = 0) -> MeshInstance3D:
 		for y in range(int(start.y/step),ceili(end.y/step)):
 			var a: Vector2=(Vector2(x,y)*step).max(start); var c: Vector2=((Vector2(x,y)+Vector2.ONE)*step).min(end)
 			for point in [a,c,Vector2(a.x,c.y),a,Vector2(c.x,a.y),c]:
-				surface.set_color(city._terrain_color(point)); surface.add_vertex(C.to_world(point,-.02 if step_override==0 else -.1))
+				surface.set_color(city._terrain_color(point)); surface.add_vertex(C.to_world(point,-.02))
 	var node:=MeshInstance3D.new()
 	if end.x<=start.x or end.y<=start.y: return node
 	surface.generate_normals(); node.mesh=surface.commit(); node.material_override=preload("res://scripts/three_d/grass_material.gd").material()
@@ -254,27 +254,19 @@ func _build_overview() -> void:
 	var records:=[]
 	for part in valley.art_chunks.values(): records.append_array(part)
 	valley._make_art_mesh(road_layer,records)
-	var roads:=SurfaceTool.new(); roads.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for edge in Map.roads:
-		if not edge.get("elevated",false) and not edge.get("ramp",false): continue
-		# Follow terrain at short intervals, including long straight block edges.
-		var samples:=PackedVector2Array([edge.points[0]])
-		for segment in range(1,edge.points.size()):
-			var start: Vector2=edge.points[segment-1]
-			var finish: Vector2=edge.points[segment]
-			var steps:=maxi(1,ceili(start.distance_to(finish)/20.0))
-			for step in range(1,steps+1): samples.append(start.lerp(finish,float(step)/steps))
-		for i in range(1,samples.size()):
-			var a: Vector2=samples[i-1]; var b: Vector2=samples[i]
-			if not Rect2(Vector2.ZERO,Map.MAP_SIZE).has_point((a+b)*.5): continue
-			var right: Vector2=(b-a).orthogonal().normalized()*float(edge.width)*.5
-			var first_height: float=10 if edge.get("elevated",false) else 10*(1-float(i-1)/(samples.size()-1)) if edge.get("ramp",false) else 0
-			var last_height: float=10 if edge.get("elevated",false) else 10*(1-float(i)/(samples.size()-1)) if edge.get("ramp",false) else 0
-			var aa:=C.to_world(a-right,first_height+.3); var ab:=C.to_world(a+right,first_height+.3)
-			var ba:=C.to_world(b-right,last_height+.3); var bb:=C.to_world(b+right,last_height+.3)
-			for point in [aa,bb,ab,aa,ba,bb]: roads.add_vertex(point)
-	roads.generate_normals()
-	var lines:=MeshInstance3D.new(); lines.mesh=roads.commit(); lines.material_override=preload("res://scripts/three_d/road_ground_art.gd").plain_asphalt_material(); road_layer.add_child(lines); overview.add_child(road_layer)
+	for cell in valley.road_chunks:
+		for key in valley.road_chunks[cell]:
+			if key.begins_with("ramp") and not key.begins_with("ramp_edge"): valley._ramp_art(road_layer,valley.road_chunks[cell][key],valley.ribbons[key].profile,75*float(Map.generation_settings.road_width_multiplier))
+			if key=="highway_elevated" and not Map.highways.is_empty(): valley._ramp_art(road_layer,valley.road_chunks[cell][key],Map.highways[0],210*float(Map.generation_settings.road_width_multiplier),6)
+	for key in ["markings_elevated","median_elevated","guardrails_elevated"]:
+		var surface:=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var count:=0
+		for cell in valley.road_chunks:
+			for vertex in valley.road_chunks[cell].get(key,PackedVector3Array()): surface.add_vertex(vertex); count+=1
+		if count==0: continue
+		var mesh:=MeshInstance3D.new(); mesh.mesh=surface.commit()
+		mesh.material_override=preload("res://scripts/three_d/reference_sprite_catalog.gd").road_material(key,valley.ribbons[key].color); road_layer.add_child(mesh)
+	overview.add_child(road_layer)
 	var water:=G.cylinder(overview,Map.lake.size.x*.05,.03,Vector3(Map.lake.get_center().x*.1,-.28,Map.lake.get_center().y*.1),Color("508a93"))
 	water.scale.z=Map.lake.size.y/Map.lake.size.x
 

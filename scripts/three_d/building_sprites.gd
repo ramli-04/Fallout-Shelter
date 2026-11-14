@@ -57,6 +57,7 @@ static func info(recipe: Dictionary,index: int) -> Dictionary:
 	var art=preload("res://scripts/three_d/reference_sprite_catalog.gd")
 	# Only the latest supplied building collection is active.
 	var sprite_kind: String={"police":"new_police","fire":"new_fire","medical":"new_office","school":"new_office","office":"new_office","industrial":"new_parking","apartment":"new_apartment"}.get(kind,"new_house%d"%posmod(index,5))
+	if kind=="industrial": sprite_kind="new_parking" if index<Map.building_data.size() and Map.building_data[index].has("garage_id") else "new_office"
 	var region: Rect2=art.REGIONS[sprite_kind]
 	var placement:=registration(sprite_kind,region,recipe.size)
 	if index<Map.building_data.size() and Map.building_data[index].has("station_art"): placement=Map.building_data[index].station_art
@@ -112,6 +113,7 @@ void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv
  if(cutout_mask==2 && ((uv.x>.75 && uv.y>.86)||(uv.x>.8 && uv.y<.025)))discard;
  if(cutout_mask==3 && uv.x>.88 && uv.y>.70)discard;
  if(cutout_mask==4 && uv.y<.13 && (uv.x<.47 || uv.x>.52))discard;
+ if(cutout_mask==4 && uv.x>.968 && uv.y>.68)discard;
  if(cutout_mask==5 && uv.x>.61 && uv.y>.9)discard;
  vec4 c=texture(artwork,uv_region.xy+uv*uv_region.zw); if(c.a<0.1)discard; ALBEDO=c.rgb; ALPHA=c.a*opacity;
  float depth=sprite_depth;

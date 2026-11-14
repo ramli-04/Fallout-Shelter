@@ -46,6 +46,7 @@ static var materials: Dictionary={}
 static var road_materials: Dictionary={}
 
 static func road_material(kind: String,color: Color) -> Material:
+	if kind.begins_with("ramp_edge"): return preload("res://scripts/three_d/road_ground_art.gd").paving_material(false)
 	if kind in ["highway","highway_elevated"] or kind.begins_with("ramp"): return preload("res://scripts/three_d/road_ground_art.gd").plain_asphalt_material()
 	if kind in ["sidewalk","wide_sidewalk","curb"]: return preload("res://scripts/three_d/road_ground_art.gd").paving_material(kind=="wide_sidewalk")
 	if kind not in ["asphalt","sidewalk","wide_sidewalk","curb","highway_elevated"] and not kind.begins_with("ramp"):
@@ -126,6 +127,7 @@ void fragment() {
  if(cutout_mask==2 && ((art_uv.x>.75 && art_uv.y>.86)||(art_uv.x>.8 && art_uv.y<.025)))discard;
  if(cutout_mask==3 && art_uv.x>.88 && art_uv.y>.70)discard;
  if(cutout_mask==4 && art_uv.y<.13 && (art_uv.x<.47 || art_uv.x>.52))discard;
+ if(cutout_mask==4 && art_uv.x>.968 && art_uv.y>.68)discard;
  if(cutout_mask==5 && art_uv.x>.61 && art_uv.y>.9)discard;
  vec4 pixel=texture(sheet,region.xy+art_uv*region.zw);
  if(pixel.a<0.15) discard;

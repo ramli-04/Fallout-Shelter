@@ -24,6 +24,8 @@ func run() -> void:
 	check(await manager.world.completed,"shelter-first world initializes existing agents")
 	var view=preload("res://scripts/map_view_3d.gd").new(); view.manager=manager; view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); root.add_child(view)
 	view.display_run(manager.agents,manager.shelters,true,manager.social.companions)
+	check(not view.show_zones and not view.blast_zones.visible,"boundary-like blast outline hidden by default")
+	check(view.city.streamer.overview.get_child(0).position.y==0,"overview ground does not create a map-edge cliff")
 	var metric_key:=InputEventKey.new(); metric_key.keycode=KEY_F10; metric_key.pressed=true
 	view._gui_input(metric_key)
 	check(view.performance_label.visible and view.performance_label.mouse_filter==Control.MOUSE_FILTER_IGNORE,"F10 metrics do not intercept map interaction")
@@ -61,7 +63,7 @@ func run() -> void:
 	view.sync_run(manager.agents,manager.shelters,1,true,manager.elapsed_seconds,manager.social.companions)
 	check(manager.elapsed_seconds>2.9 and manager.agents.size()==100,"all 100 simulation entities continue on fixed clock")
 	check(manager.agents.any(func(a):return a.position!=records_before[manager.agents.find(a)] and not view.agent_nodes.any(func(node):return node.record.id==a.id)),"off-screen agent moves without an avatar")
-	check(view.social_world.vehicle_bodies.size()==manager.social.vehicles.size(),"vehicle collision representations persist across visual boundaries")
+	check(view.social_world.vehicle_bodies.size()==manager.social.vehicles.filter(func(v):return v.get("stored_in","")=="").size(),"vehicle collision representations persist across visual boundaries")
 	for vehicle in manager.social.vehicles:
 		check(vehicle.position.is_finite(),"vehicles remain simulated across chunk boundaries")
 	var emergency: String=manager.add_emergency("POLICE_SHELTER_EVACUATION",source.position,{"radius":300,"duration":1200})
