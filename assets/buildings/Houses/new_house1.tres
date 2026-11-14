@@ -1,0 +1,8 @@
+[gd_resource type="AtlasTexture" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/reference_city/neighborhood-nature.png" id="1_ywnc1"]
+
+[resource]
+atlas = ExtResource("1_ywnc1")
+region = Rect2(273, 100, 240, 202)
+filter_clip = true

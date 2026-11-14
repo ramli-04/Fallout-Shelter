@@ -9,7 +9,7 @@ static var shared_shader: Shader
 static var transparent_texture: Texture2D
 static var missing: Dictionary={}
 # Projected ground depth / sprite width, excluding the vertical building body.
-const GROUND_DEPTH={"house0":.45,"house1":.45,"house2":.42,"house3":.44,"house4":.45,"house5":.43,"house6":.43,"house7":.42,"house8":.42,"large_house":.40,"duplex":.38,"townhouse":.32,"apartment_small":.44,"apartment_mid":.42,"apartment":.38,"office":.40,"motel":.32,"motel_single":.13,"fire":.36,"police":.35,"medical":.38}
+const GROUND_DEPTH={"new_house0":.45,"new_house1":.44,"new_house2":.43,"new_house3":.44,"new_house4":.38,"new_apartment":.4,"new_police":.45,"new_fire":.45,"new_office":.4,"new_parking":.45,"house0":.45,"house1":.45,"house2":.42,"house3":.44,"house4":.45,"house5":.43,"house6":.43,"house7":.42,"house8":.42,"large_house":.40,"duplex":.38,"townhouse":.32,"apartment_small":.44,"apartment_mid":.42,"apartment":.38,"office":.40,"motel":.32,"motel_single":.13,"fire":.36,"police":.35,"medical":.38}
 static func registration(kind: String,region: Rect2,size: Vector2) -> Dictionary:
 	var width: float=(size.x+size.y)*.70710678*.85
 	var height: float=width*region.size.y/region.size.x
@@ -49,7 +49,7 @@ static func view_key(key: String) -> String:
 	var count:=int(catalog.get(kind,{}).get("facings",72))
 	return kind+"_"+str(posmod(facing-view_facing,count))
 static func info(recipe: Dictionary,index: int) -> Dictionary:
-	var kind:="house" if recipe.roof or Map.lot_districts[index]=="GROVE" or (Map.lot_districts[index]=="RESIDENTIAL" and recipe.height<=6) else "industrial" if recipe.chimneys else "office" if Map.lot_districts[index]=="DOWNTOWN" and index%3==0 else "apartment"
+	var kind:="house" if recipe.roof or Map.lot_districts[index]=="GROVE" or (Map.lot_districts[index]=="RESIDENTIAL" and recipe.height<=6) else "industrial" if recipe.chimneys or Map.lot_districts[index]=="INDUSTRIAL" else "office" if Map.lot_districts[index]=="DOWNTOWN" and index%3==0 else "apartment"
 	for poi in Map.pois:
 		if poi.footprint==Map.lots[index]: kind={"Fire Station":"fire","Police Station":"police","Medical Station":"medical","School":"school","Bank":"office"}.get(poi.kind,"apartment")
 	var art=preload("res://scripts/three_d/reference_sprite_catalog.gd")
@@ -59,6 +59,13 @@ static func info(recipe: Dictionary,index: int) -> Dictionary:
 	elif kind=="industrial": sprite_kind="motel" if index%2==0 else "motel_single"
 	elif kind in ["office","school"]: sprite_kind="office" if kind=="office" else "townhouse"
 	if index<Map.building_data.size() and str(Map.building_data[index].get("asset_type",""))=="motel": sprite_kind="motel"
+	if kind=="house" and index%2==0: sprite_kind="new_house%d"%posmod(index/2,4)
+	elif kind=="police": sprite_kind="new_police"
+	elif kind=="fire": sprite_kind="new_fire"
+	elif kind=="office": sprite_kind="new_office"
+	elif kind=="apartment" and index%3==0: sprite_kind="new_apartment"
+	elif kind=="industrial" and index%5==0: sprite_kind="new_parking"
+	if index<Map.building_data.size() and Map.building_data[index].get("asset_type","")=="motel": sprite_kind="motel"
 	var region: Rect2=art.REGIONS[sprite_kind]
 	var visual_size: Vector2=recipe.size
 	if kind=="house":
@@ -78,6 +85,7 @@ static func material(key: String) -> ShaderMaterial:
 		var kind: String=key.split(":")[1]; var r: Rect2=art.REGIONS[kind]; var size:=Vector2(texture(key).get_size())
 		result.set_shader_parameter("uv_region",Vector4(r.position.x/size.x,r.position.y/size.y,r.size.x/size.x,r.size.y/size.y))
 		result.set_shader_parameter("mirror",int(key.split(":")[2]) in [1,2])
+		result.set_shader_parameter("cutout_mask",art.cutout_mode(kind))
 	materials[key]=result; return result
 static func shader_source() -> String:
 	return """shader_type spatial;
@@ -86,6 +94,7 @@ uniform sampler2D artwork : source_color,filter_linear_mipmap,repeat_disable;
 uniform float opacity=1.0;
 uniform vec4 uv_region=vec4(0.0,0.0,1.0,1.0);
 uniform bool mirror=false;
+uniform int cutout_mask=0;
 varying float sprite_depth;
 void vertex(){
  MODELVIEW_MATRIX=VIEW_MATRIX*mat4(INV_VIEW_MATRIX[0],INV_VIEW_MATRIX[1],INV_VIEW_MATRIX[2],MODEL_MATRIX[3]);
@@ -98,7 +107,12 @@ void vertex(){
  vec4 clip=PROJECTION_MATRIX*sort_position;
  sprite_depth=clip.z/clip.w;
 }
-void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); vec4 c=texture(artwork,uv_region.xy+uv*uv_region.zw); if(c.a<0.1)discard; ALBEDO=c.rgb; ALPHA=c.a*opacity;
+void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv.x<.11 && uv.y<.68)discard;
+ if(cutout_mask==2 && ((uv.x>.75 && uv.y>.86)||(uv.x>.8 && uv.y<.025)))discard;
+ if(cutout_mask==3 && uv.x>.88 && uv.y>.70)discard;
+ if(cutout_mask==4 && uv.y<.13 && (uv.x<.47 || uv.x>.52))discard;
+ if(cutout_mask==5 && uv.x>.61 && uv.y>.9)discard;
+ vec4 c=texture(artwork,uv_region.xy+uv*uv_region.zw); if(c.a<0.1)discard; ALBEDO=c.rgb; ALPHA=c.a*opacity;
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
  DEPTH=sprite_depth*0.5+0.5;
 #else

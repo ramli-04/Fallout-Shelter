@@ -1,0 +1,239 @@
+{
+  "atlas": "res://assets/reference_city/neighborhood-nature.png",
+  "assets": {
+    "new_house0": {
+      "category": "buildings/Houses",
+      "region": [
+        7,
+        78,
+        270,
+        205
+      ]
+    },
+    "new_house1": {
+      "category": "buildings/Houses",
+      "region": [
+        273,
+        100,
+        240,
+        202
+      ]
+    },
+    "new_house2": {
+      "category": "buildings/Houses",
+      "region": [
+        513,
+        27,
+        285,
+        275
+      ]
+    },
+    "new_house3": {
+      "category": "buildings/Houses",
+      "region": [
+        800,
+        23,
+        342,
+        281
+      ]
+    },
+    "new_house4": {
+      "category": "buildings/Houses",
+      "region": [
+        1145,
+        23,
+        382,
+        313
+      ]
+    },
+    "new_apartment": {
+      "category": "buildings/Apartments",
+      "region": [
+        11,
+        296,
+        315,
+        371
+      ]
+    },
+    "new_police": {
+      "category": "buildings/Police",
+      "region": [
+        325,
+        320,
+        413,
+        323
+      ]
+    },
+    "new_fire": {
+      "category": "buildings/FireStations",
+      "region": [
+        686,
+        299,
+        489,
+        403
+      ]
+    },
+    "new_office": {
+      "category": "buildings/Offices",
+      "region": [
+        1171,
+        338,
+        359,
+        377
+      ]
+    },
+    "new_parking": {
+      "category": "buildings/Parking",
+      "region": [
+        10,
+        615,
+        500,
+        397
+      ]
+    },
+    "new_tree0": {
+      "category": "Nature/Trees",
+      "region": [
+        538,
+        688,
+        124,
+        190
+      ]
+    },
+    "new_tree1": {
+      "category": "Nature/Trees",
+      "region": [
+        677,
+        688,
+        118,
+        188
+      ]
+    },
+    "new_tree2": {
+      "category": "Nature/Trees",
+      "region": [
+        804,
+        746,
+        83,
+        129
+      ]
+    },
+    "new_tree3": {
+      "category": "Nature/Trees",
+      "region": [
+        906,
+        712,
+        169,
+        165
+      ]
+    },
+    "new_tree4": {
+      "category": "Nature/Trees",
+      "region": [
+        1096,
+        733,
+        98,
+        141
+      ]
+    },
+    "new_tree5": {
+      "category": "Nature/Trees",
+      "region": [
+        1217,
+        734,
+        102,
+        140
+      ]
+    },
+    "new_tree6": {
+      "category": "Nature/Trees",
+      "region": [
+        1333,
+        762,
+        94,
+        112
+      ]
+    },
+    "new_tree7": {
+      "category": "Nature/Trees",
+      "region": [
+        1439,
+        778,
+        86,
+        90
+      ]
+    },
+    "new_hedge": {
+      "category": "Nature/Bushes",
+      "region": [
+        494,
+        885,
+        136,
+        114
+      ]
+    },
+    "new_bush0": {
+      "category": "Nature/Bushes",
+      "region": [
+        648,
+        894,
+        90,
+        82
+      ]
+    },
+    "new_bush1": {
+      "category": "Nature/Bushes",
+      "region": [
+        758,
+        889,
+        97,
+        86
+      ]
+    },
+    "new_bush2": {
+      "category": "Nature/Bushes",
+      "region": [
+        875,
+        890,
+        103,
+        90
+      ]
+    },
+    "new_bush3": {
+      "category": "Nature/Bushes",
+      "region": [
+        1000,
+        883,
+        105,
+        99
+      ]
+    },
+    "new_bush4": {
+      "category": "Nature/Bushes",
+      "region": [
+        1131,
+        889,
+        109,
+        98
+      ]
+    },
+    "new_cypress": {
+      "category": "Nature/Trees",
+      "region": [
+        1279,
+        859,
+        54,
+        138
+      ]
+    },
+    "new_bush5": {
+      "category": "Nature/Bushes",
+      "region": [
+        1372,
+        884,
+        136,
+        106
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+[gd_resource type="AtlasTexture" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/reference_city/streets.png" id="1_xb11j"]
+
+[resource]
+atlas = ExtResource("1_xb11j")
+region = Rect2(829, 658, 145, 87)
+filter_clip = true

@@ -215,7 +215,7 @@ func _build_streetscape() -> void:
 		if record.district in ["RESIDENTIAL","GROVE","SERVICES"]:
 			for section in [-2,-1,1,2]:
 				var hedge_point: Vector2=entry+normal*(curb+18)+tangent*section*48
-				if _safe_furniture(hedge_point,Vector2i(2,1) if absf(tangent.x)>absf(tangent.y) else Vector2i(1,2)): Art.sprite(self,"hedge",4.6,C.to_world(hedge_point))
+				if _safe_furniture(hedge_point,Vector2i(2,1) if absf(tangent.x)>absf(tangent.y) else Vector2i(1,2)): Art.sprite(self,"new_hedge" if i%2==0 else "hedge",4.6,C.to_world(hedge_point))
 		# Boundaries sit behind street furniture, leaving the central entrance open.
 		if record.district=="RESIDENTIAL" and i%3==0:
 			var point: Vector2=entry+normal*(curb+20)+tangent*85
@@ -244,6 +244,9 @@ func _build_property_fences() -> void:
 		var width: float=size.x*.5+20; var depth: float=size.y*.5+20
 		var segments: Array=[[center-front*depth-tangent*width,center-front*depth+tangent*width]]
 		for side in [-1,1]: segments.append([center-front*depth+tangent*side*width,center+front*size.y*.1+tangent*side*width])
+		for side in [-1,1]:
+			var bush_point: Vector2=center+tangent*side*(size.x*.5+15)
+			if _safe_furniture(bush_point,Vector2i.ONE,"building:%d"%index): Art.sprite(self,"new_cypress" if index%7==0 else "new_bush%d"%(index%6),1.5,C.to_world(bush_point))
 		var kind: String=["wood_fence","white_fence","chain_fence"][index%3]
 		for segment in segments:
 			var length: float=segment[0].distance_to(segment[1]); var count:=maxi(1,roundi(length/40))

@@ -363,14 +363,10 @@ func _build_background() -> void:
 	terrain.material_override.vertex_color_use_as_albedo = true
 	terrain.material_override.cull_mode = BaseMaterial3D.CULL_DISABLED
 	add_child(terrain)
-	# Instanced conifers on outskirts, outside playable terrain only.
+	# The horizon uses the same flat conifer artwork as the playable chunks.
 	var instances := MultiMesh.new()
 	instances.transform_format = MultiMesh.TRANSFORM_3D
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0
-	mesh.bottom_radius = 2.7
-	mesh.height = 9
-	mesh.radial_segments = 5
+	var mesh := QuadMesh.new(); mesh.size=Vector2(5.8,9); mesh.center_offset=Vector3(0,4.5,0)
 	instances.mesh = mesh
 	instances.instance_count = 1600
 	var rng := RandomNumberGenerator.new()
@@ -381,11 +377,13 @@ func _build_background() -> void:
 		var boundary := minf(Map.MAP_SIZE.x*0.5/maxf(absf(direction.x),0.001),Map.MAP_SIZE.y*0.5/maxf(absf(direction.y),0.001))
 		var point := center+direction*(boundary+rng.randf_range(50,3500))
 		var scale_value := rng.randf_range(0.7,1.8)
-		instances.set_instance_transform(i,Transform3D(Basis().scaled(Vector3.ONE*scale_value),Vector3(point.x*0.1,_background_height(point)+4*scale_value,point.y*0.1)))
+		instances.set_instance_transform(i,Transform3D(Basis().scaled(Vector3.ONE*scale_value),Vector3(point.x*0.1,_background_height(point),point.y*0.1)))
 	var forest := MultiMeshInstance3D.new()
 	forest.name = "DistantForest"
 	forest.multimesh = instances
-	forest.material_override = G.material(Color("435c46"))
+	forest.material_override = preload("res://scripts/three_d/reference_sprite_catalog.gd").material("new_tree0")
+	forest.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	forest.extra_cull_margin=20
 	add_child(forest)
 
 

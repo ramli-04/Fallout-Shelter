@@ -3,7 +3,7 @@ extends RefCounted
 const Map=preload("res://scripts/city_map.gd")
 const CIVIC="res://assets/reference_city/civic.png"
 const STREETS="res://assets/reference_city/streets.png"
-const REGIONS={
+static var REGIONS={
 	"fire":Rect2(515,575,495,410), "police":Rect2(5,630,505,355),
 	"medical":Rect2(1005,550,530,460),"office":Rect2(132,452,386,564), "apartment":Rect2(705,531,800,483),
 	"house0":Rect2(4,30,177,137), "house1":Rect2(183,28,169,141),
@@ -28,8 +28,20 @@ const REGIONS={
 	"accessible_paving":Rect2(967,1082,111,82),"loading_paving":Rect2(1080,1082,118,82),
 	"road_damaged":Rect2(987,650,158,102),"road_pothole":Rect2(1154,650,157,102),
 	"stone_wall":Rect2(772,1074,89,105),"concrete_wall":Rect2(865,1074,86,105)
-}
+}.merged(extra_regions())
 static var textures: Dictionary={}
+static var collection: Dictionary={}
+static func extra_regions() -> Dictionary:
+	var result: Dictionary={}
+	var source: Dictionary=JSON.parse_string(FileAccess.get_file_as_string("res://resources/reference_collection.json"))
+	for kind in source.assets:
+		var r: Array=source.assets[kind].region
+		result[kind]=Rect2(r[0],r[1],r[2],r[3])
+	return result
+static func load_collection() -> void:
+	if not collection.is_empty(): return
+	collection=JSON.parse_string(FileAccess.get_file_as_string("res://resources/reference_collection.json"))
+
 static var materials: Dictionary={}
 static var road_materials: Dictionary={}
 
@@ -71,9 +83,17 @@ static func building_kind(recipe: Dictionary,index: int) -> String:
 	return "townhouse" if recipe.height<8 else ["apartment","apartment_small","apartment_mid"][posmod(index,3)]
 
 static func atlas(kind: String) -> Texture2D:
+	load_collection()
+	if kind.begins_with("new_"):
+		var file: String=collection.atlas
+		if not textures.has(file): textures[file]=load(file)
+		return textures[file]
 	var path: String="res://assets/reference_city/civic-detailed.png" if kind in ["fire","police","medical"] else CIVIC if kind in ["office","apartment"] else STREETS
 	if not textures.has(path): textures[path]=load(path)
 	return textures[path]
+
+static func cutout_mode(kind: String) -> int:
+	return {"new_fire":1,"new_apartment":2,"new_police":3,"new_parking":4,"new_tree5":5}.get(kind,0)
 
 static func material(kind: String) -> ShaderMaterial:
 	if materials.has(kind): return materials[kind]
@@ -84,6 +104,7 @@ uniform sampler2D sheet : source_color, filter_linear_mipmap, repeat_disable;
 uniform vec4 region;
 uniform float opacity = 1.0;
 uniform bool fire_crop = false;
+uniform int cutout_mask=0;
 uniform bool flip_x=false;
 uniform bool building_anchor = false;
 void vertex() {
@@ -99,6 +120,11 @@ void vertex() {
 void fragment() {
  if (fire_crop && UV.y > 0.90 && UV.x < 0.44) discard;
  vec2 art_uv=vec2(flip_x?1.0-UV.x:UV.x,UV.y);
+ if(cutout_mask==1 && art_uv.x<.11 && art_uv.y<.68)discard;
+ if(cutout_mask==2 && ((art_uv.x>.75 && art_uv.y>.86)||(art_uv.x>.8 && art_uv.y<.025)))discard;
+ if(cutout_mask==3 && art_uv.x>.88 && art_uv.y>.70)discard;
+ if(cutout_mask==4 && art_uv.y<.13 && (art_uv.x<.47 || art_uv.x>.52))discard;
+ if(cutout_mask==5 && art_uv.x>.61 && art_uv.y>.9)discard;
  vec4 pixel=texture(sheet,region.xy+art_uv*region.zw);
  if(pixel.a<0.15) discard;
  ALBEDO=pixel.rgb; ALPHA=pixel.a*opacity;
@@ -109,11 +135,13 @@ void fragment() {
 	result.set_shader_parameter("sheet",texture)
 	result.set_shader_parameter("region",Vector4(r.position.x/s.x,r.position.y/s.y,r.size.x/s.x,r.size.y/s.y))
 	result.set_shader_parameter("opacity",1.0); result.set_shader_parameter("fire_crop",kind=="fire")
+	result.set_shader_parameter("cutout_mask",cutout_mode(kind))
 	result.set_shader_parameter("building_anchor",kind in ["fire","police","medical","apartment","apartment_small","apartment_mid","townhouse","motel"] or kind.begins_with("house"))
 	materials[kind]=result
 	return result
 
 static func sprite(parent: Node3D,kind: String,width: float,at: Vector3=Vector3.ZERO) -> MeshInstance3D:
+	load_collection()
 	var node:=MeshInstance3D.new(); node.name="Artwork_"+kind
 	var r: Rect2=REGIONS[kind]; var h: float=width*r.size.y/r.size.x
 	var quad:=QuadMesh.new(); quad.size=Vector2(width,h)

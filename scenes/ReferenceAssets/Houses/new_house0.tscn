@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" path="res://assets/reference_city/neighborhood-nature.png" id="1_6sune"]
+
+[sub_resource type="Shader" id="Shader_aneua"]
+code = "shader_type spatial;
+render_mode unshaded,cull_disabled,depth_prepass_alpha;
+uniform sampler2D artwork : source_color,filter_linear_mipmap,repeat_disable;
+uniform float opacity=1.0;
+uniform vec4 uv_region=vec4(0.0,0.0,1.0,1.0);
+uniform bool mirror=false;
+uniform int cutout_mask=0;
+varying float sprite_depth;
+void vertex(){
+ MODELVIEW_MATRIX=VIEW_MATRIX*mat4(INV_VIEW_MATRIX[0],INV_VIEW_MATRIX[1],INV_VIEW_MATRIX[2],MODEL_MATRIX[3]);
+ MODELVIEW_MATRIX[0]*=length(MODEL_MATRIX[0].xyz);
+ MODELVIEW_MATRIX[1]*=length(MODEL_MATRIX[1].xyz);
+ // Sort the flat artwork at the near edge of its reserved footprint.
+ // Centre depth lets the ground in front of the centre erase the sprite base.
+ vec4 sort_position=MODELVIEW_MATRIX[3];
+ sort_position.z+=abs(VERTEX.x)*length(MODEL_MATRIX[0].xyz)*0.9;
+ vec4 clip=PROJECTION_MATRIX*sort_position;
+ sprite_depth=clip.z/clip.w;
+}
+void fragment(){vec2 uv=vec2(mirror?1.0-UV.x:UV.x,UV.y); if(cutout_mask==1 && uv.x<.11 && uv.y<.68)discard;
+ if(cutout_mask==2 && ((uv.x>.75 && uv.y>.86)||(uv.x>.8 && uv.y<.025)))discard;
+ if(cutout_mask==3 && uv.x>.88 && uv.y>.70)discard;
+ if(cutout_mask==4 && uv.y<.13 && (uv.x<.47 || uv.x>.52))discard;
+ if(cutout_mask==5 && uv.x>.61 && uv.y>.9)discard;
+ vec4 c=texture(artwork,uv_region.xy+uv*uv_region.zw); if(c.a<0.1)discard; ALBEDO=c.rgb; ALPHA=c.a*opacity;
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+ DEPTH=sprite_depth*0.5+0.5;
+#else
+ DEPTH=sprite_depth;
+#endif
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_4hqa4"]
+render_priority = 0
+shader = SubResource("Shader_aneua")
+shader_parameter/artwork = ExtResource("1_6sune")
+shader_parameter/opacity = null
+shader_parameter/uv_region = Vector4(0.0045572915, 0.076171875, 0.17578125, 0.20019531)
+shader_parameter/mirror = false
+shader_parameter/cutout_mask = 0
+
+[sub_resource type="QuadMesh" id="QuadMesh_boky6"]
+size = Vector2(13.222897, 10.039607)
+
+[node name="new_house0" type="Node3D" unique_id=1526968063]
+
+[node name="@MeshInstance3D@2" type="MeshInstance3D" parent="." unique_id=858434197]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.013178, 0)
+material_override = SubResource("ShaderMaterial_4hqa4")
+mesh = SubResource("QuadMesh_boky6")

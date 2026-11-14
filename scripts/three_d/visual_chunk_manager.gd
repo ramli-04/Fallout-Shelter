@@ -189,14 +189,23 @@ func _damage_batches(root: Node3D) -> void:
 				transform.basis=Basis().scaled(Vector3.ZERO); batch.multimesh.set_instance_transform(i,transform)
 
 func _foliage(chunk: Dictionary) -> void:
-	for crown in [false,true]:
+	var art=preload("res://scripts/three_d/reference_sprite_catalog.gd")
+	art.load_collection()
+	var groups: Dictionary={}
+	for tree in chunk.trees:
+		var point:=Map._v2(tree.position)
+		var variant:=posmod(roundi(point.x*.1+point.y*.173),8)
+		if not groups.has(variant): groups[variant]=[]
+		groups[variant].append(tree)
+	for variant in groups:
+		var kind: String="new_tree%d"%variant; var region: Rect2=art.REGIONS[kind]
 		var multi:=MultiMesh.new(); multi.transform_format=MultiMesh.TRANSFORM_3D
-		var mesh: CylinderMesh=CylinderMesh.new(); mesh.top_radius=.12 if not crown else 0; mesh.bottom_radius=.22 if not crown else 1.8; mesh.height=2.8 if not crown else 4.2; mesh.radial_segments=6
-		multi.mesh=mesh; multi.instance_count=chunk.trees.size()
-		for i in range(chunk.trees.size()):
-			var tree: Dictionary=chunk.trees[i]; var scale_value:=float(tree.scale)
-			multi.set_instance_transform(i,Transform3D(Basis().scaled(Vector3.ONE*scale_value),C.to_world(Map._v2(tree.position))+Vector3.UP*(1.4 if not crown else 3.7)*scale_value))
-		var node:=MultiMeshInstance3D.new(); node.multimesh=multi; node.material_override=G.material(Color("427153") if crown else Color("77604a")); node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; chunk.node.add_child(node)
+		var quad:=QuadMesh.new(); quad.size=Vector2.ONE; quad.center_offset=Vector3(0,.5,0); multi.mesh=quad; multi.instance_count=groups[variant].size()
+		for i in range(groups[variant].size()):
+			var tree: Dictionary=groups[variant][i]; var h: float=[9.0,8.0,5.5,8.0,6.0,6.0,5.5,4.5][variant]*float(tree.scale)
+			var w: float=h*region.size.x/region.size.y
+			multi.set_instance_transform(i,Transform3D(Basis.from_scale(Vector3(w,h,1)),C.to_world(Map._v2(tree.position))))
+		var node:=MultiMeshInstance3D.new(); node.name="TreeArtwork_%d"%variant; node.multimesh=multi; node.material_override=art.material(kind); node.extra_cull_margin=15; node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; chunk.node.add_child(node)
 
 func _props(chunk: Dictionary) -> void:
 	var multi:=MultiMesh.new(); multi.transform_format=MultiMesh.TRANSFORM_3D

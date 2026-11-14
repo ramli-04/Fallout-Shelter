@@ -10,9 +10,9 @@ func run() -> void:
 		assert(texture!=null and Rect2(Vector2.ZERO,texture.get_size()).encloses(rect)); checks+=1
 	Map.lots.assign([Rect2(-45,-40,90,80)]); Map.lot_districts.assign(["GROVE"]); Map.lot_angles.assign([0.0]); Map.pois.clear()
 	var data:=Buildings.info({"size":Vector2(9,8),"roof":true,"height":5.5,"chimneys":false},0)
-	assert(data.key.begins_with("sheet:house0:")); checks+=1
+	assert(data.key.begins_with("sheet:new_house0:")); checks+=1
 	var material:=Buildings.material(data.key)
-	assert(material.get_shader_parameter("artwork")==Art.atlas("house0")); checks+=1
+	assert(material.get_shader_parameter("artwork")==Art.atlas("new_house0")); checks+=1
 	assert(material.get_shader_parameter("uv_region").z<1); checks+=1
 	for lanes in [2,4,-1]:
 		assert(preload("res://scripts/three_d/reference_road_tiles.gd").material(lanes).get_shader_parameter("sheet")==Art.atlas("house0")); checks+=1

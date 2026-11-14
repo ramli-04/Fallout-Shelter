@@ -1,0 +1,61 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" path="res://assets/reference_city/neighborhood-nature.png" id="1_0bbwt"]
+
+[sub_resource type="Shader" id="Shader_ig0xw"]
+code = "shader_type spatial;
+render_mode unshaded, cull_disabled, depth_prepass_alpha;
+uniform sampler2D sheet : source_color, filter_linear_mipmap, repeat_disable;
+uniform vec4 region;
+uniform float opacity = 1.0;
+uniform bool fire_crop = false;
+uniform int cutout_mask=0;
+uniform bool flip_x=false;
+uniform bool building_anchor = false;
+void vertex() {
+ MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+ MODELVIEW_MATRIX[0] *= length(MODEL_MATRIX[0].xyz);
+ MODELVIEW_MATRIX[1] *= length(MODEL_MATRIX[1].xyz);
+ MODELVIEW_MATRIX[2] *= length(MODEL_MATRIX[2].xyz);
+ if(building_anchor){
+  vec3 forward=normalize(vec3(INV_VIEW_MATRIX[2].x,0.0,INV_VIEW_MATRIX[2].z));
+  MODELVIEW_MATRIX[3] += VIEW_MATRIX*vec4(forward*abs(VERTEX.x)*0.6*length(MODEL_MATRIX[0].xyz),0.0);
+ }
+}
+void fragment() {
+ if (fire_crop && UV.y > 0.90 && UV.x < 0.44) discard;
+ vec2 art_uv=vec2(flip_x?1.0-UV.x:UV.x,UV.y);
+ if(cutout_mask==1 && art_uv.x<.11 && art_uv.y<.68)discard;
+ if(cutout_mask==2 && ((art_uv.x>.75 && art_uv.y>.86)||(art_uv.x>.8 && art_uv.y<.025)))discard;
+ if(cutout_mask==3 && art_uv.x>.88 && art_uv.y>.70)discard;
+ if(cutout_mask==4 && art_uv.y<.13 && (art_uv.x<.47 || art_uv.x>.52))discard;
+ if(cutout_mask==5 && art_uv.x>.61 && art_uv.y>.9)discard;
+ vec4 pixel=texture(sheet,region.xy+art_uv*region.zw);
+ if(pixel.a<0.15) discard;
+ ALBEDO=pixel.rgb; ALPHA=pixel.a*opacity;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_optkn"]
+render_priority = 0
+shader = SubResource("Shader_ig0xw")
+shader_parameter/sheet = ExtResource("1_0bbwt")
+shader_parameter/region = Vector4(0.7363281, 0.86816406, 0.07096354, 0.095703125)
+shader_parameter/opacity = 1.0
+shader_parameter/fire_crop = false
+shader_parameter/cutout_mask = 0
+shader_parameter/flip_x = null
+shader_parameter/building_anchor = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_ok4rn"]
+size = Vector2(1.5, 1.3486239)
+center_offset = Vector3(0, 0.67431194, 0)
+
+[node name="new_bush4" type="Node3D" unique_id=1349102053]
+
+[node name="Artwork_new_bush4" type="MeshInstance3D" parent="." unique_id=723491691]
+material_override = SubResource("ShaderMaterial_optkn")
+cast_shadow = 0
+extra_cull_margin = 1.3486239
+mesh = SubResource("QuadMesh_ok4rn")
+metadata/reference_asset = "new_bush4"
