@@ -15,5 +15,5 @@ func run() -> void:
 	assert(material.get_shader_parameter("artwork")==Art.atlas("new_house0")); checks+=1
 	assert(material.get_shader_parameter("uv_region").z<1); checks+=1
 	for lanes in [2,4,-1]:
-		assert(preload("res://scripts/three_d/reference_road_tiles.gd").material(lanes).get_shader_parameter("sheet")==preload("res://scripts/three_d/road_ground_art.gd").texture()); checks+=1
+		assert(preload("res://scripts/three_d/reference_road_tiles.gd").material(lanes).get_shader_parameter("sheet")==preload("res://scripts/three_d/street_surface_art.gd").texture()); checks+=1
 	print("Reference artwork integration: %d checks passed"%checks); quit()

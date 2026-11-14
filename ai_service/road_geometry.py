@@ -66,6 +66,6 @@ if __name__=='__main__':
             asphalt=unary_union([Polygon(p) for p in config.get('polygons',[])]+[
                 buffer(LineString(r['points']),r['width'],cap_style='flat',join_style='mitre',mitre_limit=2)
                 for r in config.get('paths',[])])
-            art=partition(asphalt,config['art_roads'],config['art_nodes'],config['terrain_cell'],config.get('art_parking',[]))
+            art=partition(asphalt,config['art_roads'],config['art_nodes'],config['terrain_cell'],config.get('art_parking',[]),config.get('art_special',[]))
         temporary.write_text(json.dumps(dict(hash=digest,groups=groups,art=art)),encoding='utf-8')
         temporary.replace(target)

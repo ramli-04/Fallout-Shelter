@@ -22,28 +22,7 @@ static func export_resources() -> int:
 
 static var paving: Dictionary={}
 static func paving_material(wide: bool) -> ShaderMaterial:
-	if paving.has(wide): return paving[wide]
-	var shader:=Shader.new(); shader.code="""shader_type spatial;
-render_mode unshaded,cull_disabled;
-uniform sampler2D atlas : source_color,filter_linear_mipmap,repeat_disable;
-uniform vec2 source_size=vec2(1254.0);
-uniform bool pavement=true;
-uniform vec2 top; uniform vec2 across; uniform vec2 along;
-void fragment(){
- vec2 uv=vec2(.57+.06*clamp(UV.x,0.0,1.0),.15+.70*fract(UV.y));
- vec4 color=textureLod(atlas,(top+across*uv.x+along*uv.y)/source_size,0.0);
- if(color.a<.95)color=textureLod(atlas,(top+across*.6+along*.5)/source_size,0.0);
- ALBEDO=color.rgb; ROUGHNESS=pavement?1.0:.9;
-}
-"""
-	var result:=ShaderMaterial.new(); result.shader=shader; result.set_shader_parameter("atlas",texture()); result.set_shader_parameter("source_size",vector(configuration().source_size)); apply(result,"straight_2lane"); result.set_shader_parameter("pavement",true); paving[wide]=result; return result
+	return preload("res://scripts/three_d/street_surface_art.gd").surface_material("pavement")
 
 static func plain_asphalt_material() -> ShaderMaterial:
-	if paving.has("asphalt"): return paving["asphalt"]
-	var shader:=Shader.new(); shader.code="""shader_type spatial;
-render_mode unshaded,cull_disabled;
-uniform sampler2D atlas : source_color,filter_linear_mipmap,repeat_disable;
-uniform vec2 source_size=vec2(1254.0);
-void fragment(){vec2 pixel=vec2(111,68)+vec2(-83,82)*.38+vec2(122,126)*.43;ALBEDO=textureLod(atlas,pixel/source_size,0.0).rgb;ROUGHNESS=1.0;}
-"""
-	var material:=ShaderMaterial.new(); material.shader=shader; material.set_shader_parameter("atlas",texture()); material.set_shader_parameter("source_size",vector(configuration().source_size)); paving["asphalt"]=material; return material
+	return preload("res://scripts/three_d/street_surface_art.gd").surface_material("asphalt")

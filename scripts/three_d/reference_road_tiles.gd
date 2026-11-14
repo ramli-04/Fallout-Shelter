@@ -5,39 +5,58 @@ static var materials: Dictionary={}
 const NODE_TILES=["intersection_4way","intersection_alt_1","intersection_alt_2","intersection_alt_3","junction_T_N","junction_T_E","junction_T_S","junction_T_W","corner_NE","corner_NW","corner_SE","corner_SW","dead_end","dead_end_crosswalk","cul_de_sac","roundabout_garden","roundabout_lawn","roundabout_fountain"]
 static func material(lanes: int) -> Material:
 	if materials.has(lanes): return materials[lanes]
+	var art=preload("res://scripts/three_d/street_surface_art.gd")
 	var shader:=Shader.new(); shader.code="""shader_type spatial;
 render_mode unshaded,cull_disabled;
 uniform sampler2D sheet : source_color,filter_linear_mipmap,repeat_disable;
-uniform vec2 source_size=vec2(1254.0);
-uniform vec2 top; uniform vec2 across; uniform vec2 along;
-uniform vec2 node_top[18]; uniform vec2 node_across[18]; uniform vec2 node_along[18];
+uniform vec4 straight_region;
+uniform vec4 parking_region;
+uniform vec4 node_regions[18];
+uniform int node_turns[18];
 uniform bool parking=false;
-uniform vec2 road_band=vec2(.16,.35);
-vec3 asphalt(){vec2 p=vec2(111,68)+vec2(-83,82)*.38+vec2(122,126)*.43;return textureLod(sheet,p/source_size,0.0).rgb;}
+uniform bool plain=false;
+uniform vec2 road_band=vec2(.25,.52);
+vec3 asphalt(){return textureLod(sheet,straight_region.xy+straight_region.zw*vec2(.39,.39),0.0).rgb;}
 void fragment(){
- vec2 uv=vec2(road_band.x+road_band.y*clamp(UV.x,0.0,1.0),.10+.80*fract(UV.y));
- vec2 p=top+across*uv.x+along*uv.y;
- if(UV2.x>.5){int index=clamp(int(UV2.x+.1)-1,0,17);vec2 junction=clamp(UV,vec2(.04),vec2(.96));p=node_top[index]+node_along[index]*junction.x+node_across[index]*junction.y;}
- vec4 color=textureLod(sheet,p/source_size,0.0);
- if(parking || (UV2.x<.5 && (UV.x<0.0 || UV.x>1.0)) || color.a<.95)color=vec4(asphalt(),1.0);
- if(UV2.x>.5 && UV2.x<15.5 && (color.g>color.r*1.1 || color.r-color.b>.04))color=vec4(asphalt(),1.0);
- // Reference junction pictures include their own raised curbs and perspective.
- // Keep their asphalt detail on the connected surface; physical curbs and lane
- // strokes are built from actual road directions, so no curb crosses a lane.
- if(UV2.x>.5 && UV2.x<15.5){
-  vec3 base=asphalt();
-  float detail=dot(color.rgb,vec3(.2126,.7152,.0722))/max(dot(base,vec3(.2126,.7152,.0722)),.01);
-  color=vec4(base*clamp(detail,.90,1.10),1.0);
+ vec2 uv=vec2(road_band.x+road_band.y*clamp(UV.x,0.0,1.0),fract(UV.y));
+ vec4 region=straight_region;
+ if(UV2.x>.5){
+  int index=clamp(int(UV2.x+.1)-1,0,17);
+  region=node_regions[index]; uv=clamp(UV,vec2(.005),vec2(.995));
+  int turns=node_turns[index];
+  if(index==14)uv.y-=.07;
+  if(turns==1)uv=vec2(uv.y,1.0-uv.x);
+  if(turns==2)uv=vec2(1.0-uv.x,1.0-uv.y);
+  if(turns==3)uv=vec2(1.0-uv.y,uv.x);
+ }
+ if(parking){region=parking_region;uv=vec2(.68-.56*clamp(UV.y,0.0,1.0),clamp(.031+1.02*UV.x,.025,.98));}
+ vec4 color=texture(sheet,region.xy+region.zw*uv);
+ if(plain || color.a<.8)color=vec4(asphalt(),1.0);
+ if(UV2.x>.5 && !parking){
+  bool grass=color.g>color.r*1.08;
+  bool paving=color.r>.42 && color.r-color.b>.025 && color.b>color.r*.55;
+  if(grass || paving)color=vec4(asphalt(),1.0);
  }
  ALBEDO=color.rgb; ROUGHNESS=1.0;
 }
 """
-	var art=preload("res://scripts/three_d/road_ground_art.gd"); var config:=art.configuration()
-	var result:=ShaderMaterial.new(); result.shader=shader; result.set_shader_parameter("sheet",art.texture()); result.set_shader_parameter("source_size",art.vector(config.source_size)); art.apply(result,"straight_median" if lanes==5 else "straight_4lane" if lanes>=4 else "straight_2lane"); result.set_shader_parameter("parking",lanes==-1); result.set_shader_parameter("road_band",Vector2(.16,.62) if lanes==5 else Vector2(.17,.48) if lanes>=4 else Vector2(.16,.35))
-	var tops:=PackedVector2Array(); var across:=PackedVector2Array(); var along:=PackedVector2Array()
-	for name in NODE_TILES:
-		var record: Dictionary=config.roads[name]; tops.append(art.vector(record.top)); across.append(art.vector(record.cross)); along.append(art.vector(record.along))
-	result.set_shader_parameter("node_top",tops); result.set_shader_parameter("node_across",across); result.set_shader_parameter("node_along",along); materials[lanes]=result; return result
+	var result:=ShaderMaterial.new(); result.shader=shader
+	result.set_shader_parameter("sheet",art.texture()); result.set_shader_parameter("parking",lanes==-2); result.set_shader_parameter("plain",lanes==-1)
+	result.set_shader_parameter("straight_region",art.region("median" if lanes==5 else "straight_4lane" if lanes>=4 else "straight_2lane"))
+	result.set_shader_parameter("parking_region",art.region("parking"))
+	result.set_shader_parameter("road_band",Vector2(.17,.66) if lanes>=4 else Vector2(.25,.52))
+	var names=["intersection","intersection","intersection","intersection","junction_T","junction_T","junction_T","junction_T","corner","corner","corner","corner","cul_de_sac","cul_de_sac","cul_de_sac","roundabout","roundabout","roundabout"]
+	if lanes>=4:
+		for i in range(8,12): names[i]="corner_4lane"
+	var regions: Array[Vector4]=[]
+	for name in names: regions.append(art.region(name))
+	result.set_shader_parameter("node_regions",regions)
+	var turns:=PackedInt32Array([0,0,0,0,1,2,3,0,0,3,1,2,0,0,0,0,0,0])
+	# The wide corner's generated base orientation is left/bottom.
+	if lanes>=4:
+		for i in range(8,12): turns[i]=(turns[i]+2)%4
+	result.set_shader_parameter("node_turns",turns)
+	materials[lanes]=result; return result
 static func conforming_surface(parent: Node3D,vertices: PackedVector3Array) -> void:
 	var groups: Dictionary={}
 	for i in range(0,vertices.size(),3):

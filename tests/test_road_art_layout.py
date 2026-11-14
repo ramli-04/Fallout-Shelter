@@ -40,3 +40,21 @@ class RoadArtLayoutTests(unittest.TestCase):
         _, second = self.fixture([[400, 0], [-400, 0], [0, 400]])
         self.assertEqual(first, second)
         self.assertTrue(all(-1e-5 <= v[2] <= 1.00001 for r in first if r['tile'] == 0 for v in r['vertices']))
+
+    def test_parking_art_follows_rotated_lot_and_station_is_excluded(self):
+        polygon=[[0,0],[0,230],[-150,230],[-150,0]]
+        lot=dict(polygon=polygon,position=[-75,115],tangent=[0,1],normal=[-1,0])
+        shape=Polygon(polygon)
+        records=partition(shape,[],[],40,[lot])
+        self.assert_complete(shape,records)
+        self.assertTrue(all(r['tile']==-2 for r in records))
+        self.assertTrue(all(-.00001<=v[2]<=1.00001 and -.00001<=v[3]<=1.00001 for r in records for v in r['vertices']))
+        lot['integrated_station']=True
+        records=partition(shape,[],[],40,[lot])
+        self.assertTrue(all(r['tile']==-1 for r in records))
+
+    def test_special_road_tile_owns_complete_turning_head(self):
+        shape=Point(0,0).buffer(115)
+        records=partition(shape,[],[],40,special=[dict(center=[0,0],extent=287.5,tile=15)])
+        self.assert_complete(shape,records)
+        self.assertTrue(all(r['tile']==15 for r in records))

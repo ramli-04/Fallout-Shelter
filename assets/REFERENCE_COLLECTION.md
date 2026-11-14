@@ -83,3 +83,30 @@ and the map edge into `outputs/` for visual inspection.
 Regenerate categorized resources after changing atlas regions:
 `godot --headless --path . --script res://tools/organize_reference_assets.gd`
 Restart to refresh loaded visuals. No new map generation is required.
+
+
+Current street sheet (latest user reference)
+------------------------------------------
+
+`assets/reference_city/street-surfaces-v2.png` is a built-in-imagegen adaptation
+of the newest supplied street sheet. The original isometric presentation was
+adapted into 15 orthographic top faces to avoid baking perspective trees, lamps
+and raised tile sides into the road mesh. This is a prepared derivative, not a
+pixel-exact extraction. Roads, pavements and public parking now use this atlas;
+the prior atlas remains the grass source. Building artwork is unchanged.
+
+`resources/street_surface_collection.json` lists the native AtlasTexture cutouts;
+individual resources are `assets/Roads/current_*.tres`. Regenerate them with
+`godot --headless --path . --script res://tools/organize_street_surfaces.gd`.
+Straight streets, broad roads, planted medians, intersections, T junctions,
+normal/wide corners, roundabouts and turning heads use corresponding top faces.
+Public parking uses the painted left bay bank and central aisle, registered to
+its existing six simulated bays and actual parcel orientation. The second bank
+is omitted because those lots contain one simulated bank; no decorative extra
+parking spaces are advertised. Police/fire integrated parking remains unchanged.
+
+The new atlas supplies yellow center lines, white edge paint, zebra crossings,
+curb ramps, concrete slab paving and parking bay paint. Old generated crossings,
+parking outlines and public-parking ground decals are suppressed to prevent double
+paint. Existing street vegetation and lampposts remain separate world objects.
+See `assets/reference_city/STREET_SURFACES_V2.md` for generation provenance.

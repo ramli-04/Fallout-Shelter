@@ -9,22 +9,37 @@ from shapely.affinity import rotate, translate
 from .road_geometry import terrain_triangles
 
 
-def partition(surface, roads, nodes, cell, parking=()):
+def partition(surface, roads, nodes, cell, parking=(), special=()):
     ground = [r for r in roads if not r.get('elevated') and not r.get('ramp')]
-    adjacency = {}
+    adjacency = {}; node_lanes={}
     for r in ground:
         for node, other in [(r['from'], r['points'][1]), (r['to'], r['points'][-2])]:
             p = nodes[int(node)]
             angle = math.atan2(other[1]-p[1], other[0]-p[0])
             adjacency.setdefault(int(node), []).append((angle, r['width']))
+            node_lanes[tuple(p)]=max(node_lanes.get(tuple(p),2),r['lanes'])
     patches = []; occupied = []
     # Explicit parking never borrows a neighboring street's lane markings.
     for lot in parking:
         if lot.get('integrated_station'): continue
         shape = Polygon(lot['polygon']).intersection(surface)
         if not shape.is_empty:
-            patches.append((shape, -1, lot['position'], (1, 0), 230, 0))
+            a,b=lot['polygon'][:2]
+            length=math.dist(a,b)
+            tangent=lot.get('tangent',((b[0]-a[0])/length,(b[1]-a[1])/length))
+            normal=lot.get('normal',(-tangent[1],tangent[0]))
+            sign=1 if tangent[0]*normal[1]-tangent[1]*normal[0]>0 else -1
+            patches.append((shape, -2, a, tangent, length, sign))
             occupied.append(shape)
+    for record in special:
+        angle=record.get('angle',0)
+        width=record['extent']; p=record['center']
+        zone=translate(rotate(box(-width/2,-width/2,width/2,width/2),angle,use_radians=True),*p)
+        shape=zone.intersection(surface)
+        if occupied: shape=shape.difference(unary_union(occupied))
+        if shape.is_empty: continue
+        patches.append((shape,record['tile'],p,(math.cos(angle),math.sin(angle)),width,0))
+        occupied.append(zone)
     for node, directions in sorted(adjacency.items()):
         p = nodes[node]; count = len(directions)
         if count == 2 and abs(math.cos(directions[0][0]-directions[1][0])) > .85:
@@ -56,7 +71,8 @@ def partition(surface, roads, nodes, cell, parking=()):
             strip = buffer(LineString([a, b]), road['width']/2+.5, cap_style='flat')
             shape = remainder.intersection(strip)
             if not shape.is_empty:
-                patches.append((shape, -4 if road['lanes']>=4 else 0, a, tangent, road['width'], distance))
+                tile=-5 if road['lanes']>=4 and road.get('kind')=='boulevard' and road['from']%3==0 else -4 if road['lanes']>=4 else 0
+                patches.append((shape,tile,a,tangent,road['width'],distance))
                 remainder = remainder.difference(strip)
             distance += length
     if not remainder.is_empty:
@@ -70,6 +86,7 @@ def partition(surface, roads, nodes, cell, parking=()):
                 along = dx*tangent[0]+dy*tangent[1]
                 across = -dx*tangent[1]+dy*tangent[0]
                 uv = [.5+along/width, .5+across/width] if tile > 0 else [.5+across/width, (distance+along)/width]
+                if tile == -2: uv=[along/width,across*distance/150]
                 vertices.append([x, y, *uv])
-            result.append(dict(tile=tile, vertices=vertices))
+            result.append(dict(tile=tile, vertices=vertices, lanes=node_lanes.get(tuple(origin),2) if tile>0 else 5 if tile==-5 else 4 if tile==-4 else 2))
     return result

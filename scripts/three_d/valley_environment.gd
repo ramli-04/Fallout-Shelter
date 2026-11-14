@@ -25,7 +25,6 @@ func _ready() -> void:
 		_ribbon(points,width+float(edge.sidewalk)*.2,.24,"sidewalk",Color("92958d"))
 		_ribbon(points,width+.4,.28,"curb",Color("9b9d99"))
 		_ribbon(points,width,.12,"asphalt",Color("414344"))
-		_marks_road(edge)
 	var junctions: Dictionary={}
 	var pavement_widths: Dictionary={}
 	for edge in Map.roads:
@@ -41,14 +40,7 @@ func _ready() -> void:
 			var a: Vector2=(Map.graph.get_point_position(connections[0])-center).normalized()
 			var b: Vector2=(Map.graph.get_point_position(connections[1])-center).normalized()
 			if a.dot(b)<-.85: continue
-			var radius: float=float(junctions[id])*1.5
-			var distance:=0.0
-			for step in range(48):
-				var t: float=float(step)/48; var u: float=float(step+1)/48
-				var start: Vector2=center+a*radius*(1-t)*(1-t)+b*radius*t*t
-				var finish: Vector2=center+a*radius*(1-u)*(1-u)+b*radius*u*u
-				if fmod(distance,55)<25: _ribbon(PackedVector2Array([start,finish]),.12,.17,"markings",Color("d6d4ca"))
-				distance+=start.distance_to(finish)
+
 		for layer in ["asphalt","curb","sidewalk"]:
 			var radius: float=junctions[id]+({"asphalt":0,"curb":2,"sidewalk":pavement_widths[id]}[layer])
 			var polygon:=PackedVector2Array()
@@ -65,10 +57,7 @@ func _ready() -> void:
 		if lot.get("integrated_station",false): continue
 		_polygon(lot.polygon,.12,"asphalt",Color("414344"))
 		_ribbon(PackedVector2Array([lot.road_entry,lot.position]),3.2,.12,"asphalt",Color("414344"))
-		for bay in lot.bays:
-			var forward:=Vector2.from_angle(bay.heading); var side:=forward.orthogonal()
-			var outline:=PackedVector2Array([bay.position+forward*33-side*15,bay.position-forward*33-side*15,bay.position-forward*33+side*15,bay.position+forward*33+side*15])
-			_ribbon(outline,.10,.17,"parking_markings",Color("d7c18b"))
+
 	for building_index in range(Map.building_data.size()):
 		var building: Dictionary=Map.building_data[building_index]
 		if building.has("access_path") or building.has("driveway"):
@@ -189,11 +178,19 @@ func _commit_ribbons() -> void:
 		var point: Vector2=Map.graph.get_point_position(id)
 		groups.asphalt.art_nodes.append([point.x,point.y])
 	groups.asphalt.art_parking=[]
+	groups.asphalt.art_special=[]
+	for item in Map.roundabout_data:
+		groups.asphalt.art_special.append({"tile":16,"center":item.center,"extent":float(item.radius)*3.1})
+	var approach: Dictionary=Map.nearest_edge(Map.grove.center)
+	var center: Vector2=Map.grove.center
+	var towards: Vector2=(approach.edge.points[0]-center).normalized()
+	if towards.length()<.01: towards=(approach.edge.points[-1]-center).normalized()
+	groups.asphalt.art_special.append({"tile":15,"center":center,"extent":287.5,"angle":Vector2(towards.y,-towards.x).angle()})
 	for lot in Map.parking_lots:
 		if lot.get("integrated_station",false): continue
 		var polygon:=[]
 		for point in lot.polygon: polygon.append([point.x,point.y])
-		groups.asphalt.art_parking.append({"polygon":polygon,"position":[lot.position.x,lot.position.y]})
+		groups.asphalt.art_parking.append({"polygon":polygon,"position":[lot.position.x,lot.position.y],"tangent":[lot.tangent.x,lot.tangent.y],"normal":[lot.normal.x,lot.normal.y]})
 	geometry_definition=groups
 	var encoded:=JSON.stringify(_json_vectors(groups),"",true,true)
 	var digest:=encoded.sha256_text().substr(0,20)
@@ -262,7 +259,7 @@ func _partition_art(records: Array) -> void:
 func _make_art_mesh(parent: Node3D,records: Array) -> void:
 	var groups: Dictionary={}
 	for record in records:
-		var lanes: int=-1 if int(record.tile)==-1 else 4 if int(record.tile)==-4 else 2
+		var lanes: int=int(record.tile) if int(record.tile) in [-1,-2] else int(record.get("lanes",4 if int(record.tile)==-4 else 2))
 		if not groups.has(lanes):
 			var surface:=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES); groups[lanes]=surface
 		for index in [0,2,1]:
@@ -310,14 +307,7 @@ func make_chunk(cell: Vector2i) -> Node3D:
 		if mesh.material_override is StandardMaterial3D: mesh.material_override.cull_mode=BaseMaterial3D.CULL_DISABLED
 		root.add_child(mesh)
 	var bounds:=Rect2(Vector2(cell)*chunk_size,Vector2.ONE*chunk_size)
-	for lot in Map.parking_lots:
-		if lot.get("integrated_station",false): continue
-		if not bounds.has_point(lot.position) or lot.bays.is_empty(): continue
-		var bay: Dictionary=lot.bays[0]
-		preload("res://scripts/three_d/reference_sprite_catalog.gd").ground_decal(root,"accessible_paving",Vector2(6.2,2.8),Coordinates.to_world(bay.position,.15),bay.heading)
-		if lot.category in ["hospital","police","offices","motel"]:
-			var service_bay: Dictionary=lot.bays[-1]
-			preload("res://scripts/three_d/reference_sprite_catalog.gd").ground_decal(root,"loading_paving",Vector2(6.2,2.8),Coordinates.to_world(service_bay.position,.15),service_bay.heading)
+
 	decorate_damage(root,bounds)
 	return root
 

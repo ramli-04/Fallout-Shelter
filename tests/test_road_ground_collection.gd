@@ -16,5 +16,5 @@ func _initialize() -> void:
 	assert(grass.get_shader_parameter("atlas")==Art.texture()); assert(grass.get_shader_parameter("tops").size()==13)
 	for lanes in [2,4,5,-1]:
 		var material=preload("res://scripts/three_d/reference_road_tiles.gd").material(lanes)
-		assert(material.get_shader_parameter("sheet")==Art.texture()); assert(material.get_shader_parameter("node_top").size()==18); checks+=2
+		assert(material.get_shader_parameter("sheet")==preload("res://scripts/three_d/street_surface_art.gd").texture()); assert(material.get_shader_parameter("node_regions").size()==18); checks+=2
 	print("Road and ground atlas: %d checks passed"%checks); quit()
